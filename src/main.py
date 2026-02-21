@@ -2,28 +2,10 @@ from typing import TypedDict, NotRequired
 from itertools import permutations
 from probability import distribute_balls_unlabeled
 
-class FileReaderPOC:
-  def loadSave(self):
-    pass
-
-  def getSteps(self):
-    pass
-
 class Item(TypedDict):
   name:str
   quantity:int
   unstackable:NotRequired[bool]
-
-
-def are_inventories_equal(i1:list[Item], i2:list[Item]):
-  if len(i1) != len(i2):
-    return False
-  for i, item1 in enumerate(i1):
-    item2 = i2[i]
-    if item1["name"] != item2["name"]:
-      return False
-    if item1["quantity"] != item2["quantity"]:
-      return False
 
 # encodes an item into a string for easy comparisons
 def encode_item(item:Item):
@@ -60,19 +42,6 @@ def calculate_inventories(items:list[Item]):
           ["Blank//1//True" for _ in range(blanks-i-1)]
         ))
   return inventories
-      
-  
-  # foreach item look to see if it appears in the rest of the list
-  # if it does 
-  # remove a blank
-
-
-
-# Given a list of items, each with a quanity that can ba split into different stacks, generate the total number of inventories possible with a 10 slot inventory
-# def generateInventoryCombinations(items:list[Item]) -> int:
-#   max_slots = 10
-  # calculate total number of rearrangements
-  # calculate total number of stack
 
   
 
@@ -125,7 +94,6 @@ items:list[Item] = [
 
 count = 0
 inventories = calculate_inventories(items)
-# print(inventories.pop().split(","))
 for ii,i in enumerate(inventories):
   print(f"Checking Inventory {ii+1}/{len(inventories)}")
   inventory = i.split(",")
