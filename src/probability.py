@@ -1,3 +1,17 @@
+from math import factorial
+from collections import Counter
+
+def unique_permutation_count(items):
+    counts = Counter(items)
+    n = len(items)
+
+    denom = 1
+    for c in counts.values():
+        denom *= factorial(c)
+
+    return factorial(n) // denom
+
+
 def distribute_balls_unlabeled(balls: int, holes: int):
     """
     Return all ways to put `balls` identical balls into `holes` unlabeled holes,

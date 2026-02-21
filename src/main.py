@@ -1,6 +1,6 @@
 from typing import TypedDict, NotRequired
 from itertools import permutations
-from probability import distribute_balls_unlabeled
+from probability import distribute_balls_unlabeled, unique_permutation_count
 
 class Item(TypedDict):
   name:str
@@ -13,7 +13,8 @@ def encode_item(item:Item):
 
 # given a full encoded inventory, figure out the different arrangements and return them as encoded items
 def calculate_inventory_arrangements(inventory:list[str]):
-  return set(permutations(inventory))
+  # return set(permutations(inventory))
+  return unique_permutation_count(inventory)
 
 # given a stack size, and number of slots to spread it to, return all the possible combinations (order ignored)
 def spread_stack(stack:int, slots:int):
@@ -89,15 +90,38 @@ items:list[Item] = [
     "name":"Blank",
     "quantity":1,
     "unstackable":True
+  },
+  {
+    "name":"Blank",
+    "quantity":1,
+    "unstackable":True
+  },
+  {
+    "name":"Blank",
+    "quantity":1,
+    "unstackable":True
   }
 ]
 
 count = 0
 inventories = calculate_inventories(items)
+abstract_inventories = {}
 for ii,i in enumerate(inventories):
   print(f"Checking Inventory {ii+1}/{len(inventories)}")
   inventory = i.split(",")
-  i_count = len(calculate_inventory_arrangements(inventory))
+  abstract_inventory_dict = {}
+  for item in inventory:
+    if item not in abstract_inventory_dict.keys():
+      abstract_inventory_dict[item] = 0
+    abstract_inventory_dict[item] += 1
+  abstract_inventory = ",".join(str(v) for v in [sorted(abstract_inventory_dict.values())])
+  if abstract_inventory in abstract_inventories.keys():
+    i_count = abstract_inventories[abstract_inventory]
+  else:
+    # i_count = len(calculate_inventory_arrangements(inventory))
+    i_count = calculate_inventory_arrangements(inventory)
+    abstract_inventories[abstract_inventory] = i_count
   print(f"Found {i_count} permutations")
   count += i_count
+
 print(f"Total: {count}")
