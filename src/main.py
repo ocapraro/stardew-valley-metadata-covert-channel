@@ -45,7 +45,7 @@ def calculate_inventories(items:list[Item]):
 
 def get_inventory_counts(items:list[Item], verbose=False):
   # The different combinations of items
-  encoded_inventories = calculate_inventories(items)
+  encoded_inventories = sorted(calculate_inventories(items))
   inventory_counts = {}
   abstract_inventories = {}
 
