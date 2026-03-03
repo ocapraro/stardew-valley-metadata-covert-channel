@@ -111,6 +111,18 @@ def get_inventory(number:int, items:list[Item], verbose=False):
       count += perm_count
   return final_inventory
 
+def text_to_number(message:str):
+  binary_message = [f"{ord(c):0{8}b}" for c in message]
+  if len(binary_message)>32:
+    return -1
+  return int("".join(binary_message),2)
+
+
+def number_to_text(number:int):
+  binary_string = f"{number:032b}"
+  return "".join(chr(int(binary_string[i:i+8], 2)) for i in range(0, len(binary_string), 8))
+  
+
 
 items:list[Item] = [
   {
@@ -171,5 +183,5 @@ items:list[Item] = [
 
 
 
-print(f"Total: {sum(get_inventory_counts(items).values())}")
-print("\n".join(get_inventory(10000, items)))
+# print(f"Total: {bin(sum(get_inventory_counts(items).values()))}")
+print(get_inventory(text_to_number("Hi!"),items))
