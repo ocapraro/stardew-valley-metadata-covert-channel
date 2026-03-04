@@ -234,7 +234,7 @@ inventory_index = get_inventory_index(inventory,items)
 decoded_msg = number_to_text(inventory_index)
 
 print(f"Encrypting Message: {msg}")
-print(f"Convert to binary: {number_msg}")
+print(f"Convert to number: {number_msg}")
 print(f"Found inventory:\n - {'\n - '.join([str(item['quantity'])+item['name'] for item in inventory])}")
 
 print(f"Inventory Index: {inventory_index}")
