@@ -45,8 +45,8 @@ def calculate_inventories(items:list[Item]):
       for spread in spreads:
         inventories.add(",".join(sorted(
           [encode_item(spread_item) for spread_item in de_blanked if (spread_item["name"] != item["name"])] +
-          [f"{item['name']}//{spread_count}//False" for spread_count in spread]+
-          ["Blank//1//True" for _ in range(blanks-i-1)]
+          [f"{item['name']}//{spread_count}" for spread_count in spread]+
+          ["Blank//1" for _ in range(blanks-i-1)]
         )))
   return inventories
 
@@ -180,6 +180,25 @@ def get_current_inventory(save_path:str):
       })
 
   return inventory
+
+
+# Condenses all stacks
+def collapse_inventory(inventory:list[Item])->list[Item]:
+  item_counts = {}
+  for item in inventory:
+    if item["name"] == "Blank":
+      continue
+    if not item["name"] in item_counts.keys():
+      item_counts[item["name"]] = 0
+    item_counts[item["name"]] += item["quantity"]
+  collapsed_inventory:list[Item] = [{
+    "name":key,
+    "quantity":item_counts[key]
+  } for key in item_counts.keys()]
+  return collapsed_inventory + [{
+    "name":"Blank",
+    "quantity":1
+  } for _ in range(len(inventory)-len(collapsed_inventory))]
   
   
 
@@ -205,4 +224,19 @@ print(f"Inventory Index: {inventory_index}")
 print(f"Decoded message: {decoded_msg}")
 '''
 
-print(get_current_inventory("/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"))
+current_inventory = get_current_inventory("/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo")
+collapsed_inventory = collapse_inventory(current_inventory)
+
+
+# Encode
+msg = "Lily"
+number_msg = text_to_number(msg)
+inventory = get_inventory(number_msg,collapsed_inventory)
+print(inventory)
+
+# Decode
+# print(current_inventory)
+inventory_index = get_inventory_index(current_inventory,collapsed_inventory)
+decoded_msg = number_to_text(inventory_index)
+
+print(f"Decoded message: {decoded_msg}")
