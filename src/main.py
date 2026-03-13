@@ -1,15 +1,14 @@
 from typing import TypedDict, NotRequired
-from itertools import permutations
 from probability import distribute_balls_unlabeled, unique_permutation_count
+import xml.etree.ElementTree as ET
 
 class Item(TypedDict):
   name:str
   quantity:int
-  unstackable:NotRequired[bool]
 
 # encodes an item into a string for easy comparisons
 def encode_item(item:Item):
-  return f"{item['name']}//{item['quantity']}//{item.get("unstackable", False)}"
+  return f"{item['name']}//{item['quantity']}"
 
 def decode_item(string:str)->Item:
   parts = string.split("//")
@@ -17,8 +16,6 @@ def decode_item(string:str)->Item:
     "name": parts[0],
     "quantity": int(parts[1]),
   }
-  if len(parts) > 2:
-    item["unstackable"] = parts[2]=="True"
   return item
 
 # given a full encoded inventory, figure out the different arrangements and return them as encoded items
@@ -159,74 +156,41 @@ def text_to_number(message:str):
 def number_to_text(number:int):
   binary_string = f"{number:032b}"
   return "".join(chr(int(binary_string[i:i+8], 2)) for i in range(0, len(binary_string), 8))
+
+def get_current_inventory(save_path:str):
+  tree = ET.parse(save_path)
+  root = tree.getroot()
+  items = root.find("items")
+  inventory:list[Item] = []
+  if items is None:
+    return []
+  
+  for item in items:
+    name = item.find("name")
+    quantity = item.find("stack")
+    if name is None or quantity is None:
+      inventory.append({
+        "name":"Blank",
+        "quantity":1
+      })
+    else:
+      inventory.append({
+        "name":str(name.text),
+        "quantity":int(str(quantity.text))
+      })
+
+  return inventory
+  
   
 
-
-items:list[Item] = [
-  {
-    "name":"Axe",
-    "quantity":1
-  },
-  {
-    "name":"Hoe",
-    "quantity":1
-  },
-  {
-    "name":"WateringCan",
-    "quantity":1
-  },
-  {
-    "name":"Pickaxe",
-    "quantity":1
-  },
-  {
-    "name":"MeleeWeapon",
-    "quantity":1
-  },
-  {
-    "name":"Parsnip Seeds",
-    "quantity":15
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  },
-  {
-    "name":"Blank",
-    "quantity":1,
-    "unstackable":True
-  }
-]
-
-
+'''
 # 5157250560
 print(f"Total: {sum(get_inventory_counts(items).values())}")
 print(f"Accuracy: {sum(get_inventory_counts(items).values())/51572505.6}%")
 # print(get_inventory(text_to_number("Hi!"),items))
 
 # Encode
-msg = "Lily"
+msg = "hey!"
 number_msg = text_to_number(msg)
 inventory = get_inventory(number_msg,items)
 
@@ -239,3 +203,6 @@ print(f"Found inventory:\n - {'\n - '.join([str(item['quantity'])+item['name'] f
 
 print(f"Inventory Index: {inventory_index}")
 print(f"Decoded message: {decoded_msg}")
+'''
+
+print(get_current_inventory("/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"))
