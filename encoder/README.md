@@ -2,4 +2,7 @@
 The encoder
 
 ## Install Instructions
-TBD
+Set path
+```sh
+export STARDEW_VALLEY_PATH="/Users/ocapraro/Library/Application Support/Steam/steamapps/common/Stardew Valley"
+```
