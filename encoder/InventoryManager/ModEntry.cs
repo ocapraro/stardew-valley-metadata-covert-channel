@@ -35,7 +35,7 @@ public class ModEntry : Mod
       if (Game1.currentLocation?.Name != "FarmHouse")
         return false;
 
-      var bed = Game1.currentLocation.furniture.First(f=>f is BedFurniture);
+      var bed = Game1.currentLocation.furniture.FirstOrDefault(f => f is BedFurniture);
 
       if (bed is null)
         return false;
@@ -58,7 +58,17 @@ public class ModEntry : Mod
   {
     if(IsSleeping(e))
     {
-      Monitor.Log($"Sleeping", LogLevel.Info); 
+      var playerInventory = Game1.player.Items;
+      
+      Monitor.Log($"Inventory slots: {playerInventory.Count}", LogLevel.Info);
+      for (var slot = 0; slot < playerInventory.Count; slot++)
+      {
+        var item = playerInventory[slot];
+        if (item is null)
+          continue;
+
+        Monitor.Log($"Slot {slot}: {item.QualifiedItemId}, {item.DisplayName}, {item.Stack}", LogLevel.Info);
+      }
     }    
   }
 }
