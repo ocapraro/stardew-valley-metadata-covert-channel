@@ -295,3 +295,9 @@ currentInventory:list[Item] = [
 collapsed_inventory = collapse_inventory(currentInventory)
 
 print(len(calculate_inventories(collapsed_inventory)))
+
+counts = get_inventory_counts(collapsed_inventory)
+for key in counts:
+  print(key,counts[key],"\n")
+
+print(sum([count for count in counts.values()]))

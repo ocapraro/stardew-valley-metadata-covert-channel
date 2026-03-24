@@ -1,13 +1,19 @@
 package inventory
 
 import (
+	"fmt"
 	"slices"
 	"sort"
+	"strings"
 )
 
 type Item struct {
 	Name  string
 	Stack uint8
+}
+
+func (i Item) encode() string {
+	return fmt.Sprintf("[%s:%d]", i.Name, i.Stack)
 }
 
 type Inventory struct {
@@ -58,6 +64,30 @@ func (i *Inventory) removeBlanks() {
 		deblanked = append(deblanked, item)
 	}
 	i.Items = deblanked
+}
+
+func (i *Inventory) addBlanks(length int) {
+	for len(i.Items) < length {
+		i.Items = append(i.Items, Item{
+			Name:  "Blank",
+			Stack: 0,
+		})
+	}
+}
+
+func (i Inventory) encode() string {
+	var b strings.Builder
+	b.WriteString("[")
+	for index, item := range i.Items {
+		if index > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(item.Name)
+		b.WriteString(":")
+		fmt.Fprint(&b, item.Stack)
+	}
+	b.WriteString("]")
+	return b.String()
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
@@ -146,6 +176,33 @@ func (i Inventory) calculateCombinations() []Inventory {
 	return inventoryCombinations
 }
 
+func (i Inventory) GetCounts() map[string]uint64 {
+	inventories := i.calculateCombinations()
+	sort.Slice(inventories, func(j, k int) bool {
+		return fmt.Sprint(inventories[j].Items) < fmt.Sprint(inventories[k].Items)
+	})
+	invetoryCounts := make(map[string]uint64)
+	abstractCounts := make(map[string]uint64)
+
+	for _, inventory := range inventories {
+		inventory.addBlanks(len(i.Items))
+		abstract := inventory.getAbstract()
+		if abstractCounts[string(abstract)] > 0 {
+			invetoryCounts[inventory.encode()] = abstractCounts[string(abstract)]
+			continue
+		}
+		numerator := 0
+		denominator := 1
+		for _, itemCount := range abstract {
+			numerator += int(itemCount)
+			denominator *= factorial(int(itemCount))
+		}
+		numerator = factorial(numerator)
+		invetoryCounts[inventory.encode()] = uint64(numerator / denominator)
+	}
+	return invetoryCounts
+}
+
 // GetVariation gets the variation of a collapsed inventory at a given index
 // func (i Inventory) GetVariation(index uint64) Inventory {
 
@@ -171,6 +228,21 @@ func (i Inventory) Print() {
 		print(item.Name, " x", item.Stack, " ")
 	}
 	println()
+}
+
+// getAbstract turns the inventory into just a slice of Item stacks
+// It's used for getting standardized permutation counts
+func (i Inventory) getAbstract() []uint8 {
+	var abstractRepresentation []uint8
+	abstractMap := make(map[Item]uint8)
+	for _, item := range i.Items {
+		abstractMap[item]++
+	}
+	for _, count := range abstractMap {
+		abstractRepresentation = append(abstractRepresentation, count)
+	}
+	slices.Sort(abstractRepresentation)
+	return abstractRepresentation
 }
 
 // calculateSpread generates all the different combinations of the numbers
@@ -216,4 +288,15 @@ func spreadSpares(spares uint8, blanks uint8) [][]uint8 {
 		nextStack--
 	}
 	return spread
+}
+
+func factorial(n int) int {
+	if n <= 1 {
+		return 1
+	}
+	result := 1
+	for i := 2; i <= n; i++ {
+		result *= i
+	}
+	return result
 }
