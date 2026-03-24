@@ -58,17 +58,10 @@ func main() {
 		},
 	}
 
-	// msg := "Lily"
-	// numberMsg := inventory.TextToNumber(msg)
+	msg := "Lily"
+	numberMsg := inventory.TextToNumber(msg)
 	println(len(currentInventory.Items))
-
-	counts := currentInventory.GetCounts()
-	total := 0
-	for key, count := range counts {
-		total += int(count)
-		println(key, count)
-		println("\n")
-		// println(len(strings.Split(key, ",")))
-	}
-	println(total)
+	variation := currentInventory.GetVariation(numberMsg)
+	variation.Print()
+	println(len(variation.Items))
 }

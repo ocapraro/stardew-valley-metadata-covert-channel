@@ -90,6 +90,30 @@ func (i Inventory) encode() string {
 	return b.String()
 }
 
+func decodeInventory(encodedInventory string) Inventory {
+	i := Inventory{}
+	encodedInventory = strings.Trim(encodedInventory, "[]")
+	itemPairs := strings.Split(encodedInventory, ",")
+
+	for _, pair := range itemPairs {
+		parts := strings.Split(pair, ":")
+		if len(parts) != 2 {
+			continue
+		}
+
+		name := parts[0]
+		var stack uint8
+		fmt.Sscanf(parts[1], "%d", &stack)
+
+		i.Items = append(i.Items, Item{
+			Name:  name,
+			Stack: stack,
+		})
+	}
+
+	return i
+}
+
 // calculateCombinations gets each way the stacks in an inventory can be split
 func (i Inventory) calculateCombinations() []Inventory {
 	deblankedInventory := i.Copy()
@@ -176,7 +200,19 @@ func (i Inventory) calculateCombinations() []Inventory {
 	return inventoryCombinations
 }
 
-func (i Inventory) GetCounts() map[string]uint64 {
+func (i Inventory) getPermutationCount() uint64 {
+	abstract := i.getAbstract()
+	numerator := 0
+	denominator := 1
+	for _, itemCount := range abstract {
+		numerator += int(itemCount)
+		denominator *= factorial(int(itemCount))
+	}
+	numerator = factorial(numerator)
+	return uint64(numerator / denominator)
+}
+
+func (i Inventory) getCounts() map[string]uint64 {
 	inventories := i.calculateCombinations()
 	sort.Slice(inventories, func(j, k int) bool {
 		return fmt.Sprint(inventories[j].Items) < fmt.Sprint(inventories[k].Items)
@@ -191,22 +227,60 @@ func (i Inventory) GetCounts() map[string]uint64 {
 			invetoryCounts[inventory.encode()] = abstractCounts[string(abstract)]
 			continue
 		}
-		numerator := 0
-		denominator := 1
-		for _, itemCount := range abstract {
-			numerator += int(itemCount)
-			denominator *= factorial(int(itemCount))
-		}
-		numerator = factorial(numerator)
-		invetoryCounts[inventory.encode()] = uint64(numerator / denominator)
+		perms := inventory.getPermutationCount()
+		invetoryCounts[inventory.encode()] = perms
+		abstractCounts[string(abstract)] = perms
 	}
 	return invetoryCounts
 }
 
 // GetVariation gets the variation of a collapsed inventory at a given index
-// func (i Inventory) GetVariation(index uint64) Inventory {
+func (i Inventory) GetVariation(target uint64) Inventory {
+	inventoryCounts := i.getCounts()
+	var encodedInventories []string
+	for inventory := range inventoryCounts {
+		encodedInventories = append(encodedInventories, inventory)
+	}
+	slices.Sort(encodedInventories)
 
-// }
+	count := uint64(0)
+	encodedInventory := ""
+	for _, inventory := range encodedInventories {
+		currentInventoryCount := inventoryCounts[inventory]
+		if count+currentInventoryCount > target {
+			encodedInventory = inventory
+			break
+		}
+		count += currentInventoryCount
+	}
+	if len(encodedInventory) < 1 {
+		return Inventory{}
+	}
+
+	finalInventory := Inventory{}
+	workingInventory := decodeInventory(encodedInventory)
+	workingInventory.Sort()
+
+	for len(workingInventory.Items) > 0 {
+		checkedItems := Inventory{}
+		for index, item := range workingInventory.Items {
+			if checkedItems.Contains(item) {
+				continue
+			}
+			checkedItems.Items = append(checkedItems.Items, item)
+			checkingInventory := workingInventory.Copy()
+			checkingInventory.Items = slices.Delete(checkingInventory.Items, index, index+1)
+			permCount := checkingInventory.getPermutationCount()
+			if count+permCount > target {
+				workingInventory.Items = slices.Delete(workingInventory.Items, index, index+1)
+				finalInventory.Items = append(finalInventory.Items, item)
+				break
+			}
+			count += permCount
+		}
+	}
+	return finalInventory
+}
 
 // Copy returns a copy of the Inventory
 func (i Inventory) Copy() Inventory {
