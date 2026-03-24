@@ -34,7 +34,7 @@ func StartEncoder() {
 				Stack: 1,
 			},
 			{
-				Name:  "WateringCan",
+				Name:  "Watering Can",
 				Stack: 1,
 			},
 			{
@@ -46,7 +46,7 @@ func StartEncoder() {
 				Stack: 10,
 			},
 			{
-				Name:  "MeleeWeapon",
+				Name:  "Scythe",
 				Stack: 1,
 			},
 			{

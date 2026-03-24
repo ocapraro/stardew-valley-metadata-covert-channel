@@ -282,6 +282,58 @@ func (i Inventory) GetVariation(target uint64) Inventory {
 	return finalInventory
 }
 
+func (i Inventory) GetIndex() uint64 {
+	collapsedInventory := i.Copy()
+	collapsedInventory.collapse()
+	collapsedInventory.Sort()
+
+	sortedInventory := i.Copy()
+	sortedInventory.Sort()
+	encodedInventory := sortedInventory.encode()
+
+	inventoryCounts := collapsedInventory.getCounts()
+	var encodedInventories []string
+	for inventory := range inventoryCounts {
+		encodedInventories = append(encodedInventories, inventory)
+	}
+	slices.Sort(encodedInventories)
+	if !slices.Contains(encodedInventories, encodedInventory) {
+		return 0
+	}
+
+	count := uint64(0)
+	for _, inventory := range encodedInventories {
+		if inventory == encodedInventory {
+			break
+		}
+		count += inventoryCounts[inventory]
+	}
+
+	finalInventory := Inventory{}
+	workingInventory := decodeInventory(encodedInventory)
+	workingInventory.Sort()
+
+	for len(workingInventory.Items) > 0 {
+		checkedItems := Inventory{}
+		for index, item := range workingInventory.Items {
+			if checkedItems.Contains(item) {
+				continue
+			}
+			checkedItems.Items = append(checkedItems.Items, item)
+			checkingInventory := workingInventory.Copy()
+			checkingInventory.Items = slices.Delete(checkingInventory.Items, index, index+1)
+			permCount := checkingInventory.getPermutationCount()
+			if slices.Equal(i.Items[:len(finalInventory.Items)+1], append(finalInventory.Items, item)) {
+				workingInventory.Items = slices.Delete(workingInventory.Items, index, index+1)
+				finalInventory.Items = append(finalInventory.Items, item)
+				break
+			}
+			count += permCount
+		}
+	}
+	return count
+}
+
 // Copy returns a copy of the Inventory
 func (i Inventory) Copy() Inventory {
 	copiedInventory := Inventory{
@@ -293,7 +345,15 @@ func (i Inventory) Copy() Inventory {
 
 func (i *Inventory) Sort() {
 	sort.Slice(i.Items, func(j, k int) bool {
-		return i.Items[j].Name < i.Items[k].Name
+		jBlank := i.Items[j].Stack < 1
+		kBlank := i.Items[k].Stack < 1
+		if jBlank != kBlank {
+			return !jBlank // blanks go to the end
+		}
+		if i.Items[j].Name != i.Items[k].Name {
+			return i.Items[j].Name < i.Items[k].Name
+		}
+		return i.Items[j].Stack < i.Items[k].Stack
 	})
 }
 
