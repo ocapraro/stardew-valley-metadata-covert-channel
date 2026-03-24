@@ -224,19 +224,74 @@ print(f"Inventory Index: {inventory_index}")
 print(f"Decoded message: {decoded_msg}")
 '''
 
-current_inventory = get_current_inventory("/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo")
-collapsed_inventory = collapse_inventory(current_inventory)
+# current_inventory = get_current_inventory("/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo")
+# collapsed_inventory = collapse_inventory(current_inventory)
 
 
-# Encode
-msg = "Lily"
-number_msg = text_to_number(msg)
-inventory = get_inventory(number_msg,collapsed_inventory)
-print(inventory)
+# # Encode
+# msg = "Lily"
+# number_msg = text_to_number(msg)
+# inventory = get_inventory(number_msg,collapsed_inventory)
+# print(inventory)
 
-# Decode
-# print(current_inventory)
-inventory_index = get_inventory_index(current_inventory,collapsed_inventory)
-decoded_msg = number_to_text(inventory_index)
+# # Decode
+# # print(current_inventory)
+# inventory_index = get_inventory_index(current_inventory,collapsed_inventory)
+# decoded_msg = number_to_text(inventory_index)
 
-print(f"Decoded message: {decoded_msg}")
+# print(f"Decoded message: {decoded_msg}")
+
+currentInventory:list[Item] = [
+  {
+    "name":  "Axe",
+    "quantity": 1,
+  },
+  {
+    "name":  "Hoe",
+    "quantity": 1,
+  },
+  {
+    "name":  "WateringCan",
+    "quantity": 1,
+  },
+  {
+    "name":  "Pickaxe",
+    "quantity": 1,
+  },
+  {
+    "name":  "Parsnip Seeds",
+    "quantity": 10,
+  },
+  {
+    "name":  "MeleeWeapon",
+    "quantity": 1,
+  },
+  {
+    "name":  "Parsnip Seeds",
+    "quantity": 5,
+  },
+  {
+    "name":  "Blank",
+    "quantity": 1,
+  },
+  {
+    "name":  "Blank",
+    "quantity": 1,
+  },
+  {
+    "name":  "Blank",
+    "quantity": 1,
+  },
+  {
+    "name":  "Blank",
+    "quantity": 1,
+  },
+  {
+    "name":  "Blank",
+    "quantity": 1,
+  }
+]
+
+collapsed_inventory = collapse_inventory(currentInventory)
+
+print(len(calculate_inventories(collapsed_inventory)))
