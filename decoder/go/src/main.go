@@ -66,7 +66,8 @@ func main() {
 	variation := currentInventory.GetVariation(numberMsg)
 	variation.Print()
 	msgNumber := variation.GetIndex()
-	fmt.Printf("%d : %s\n", msgNumber, "N/A")
+	newMsg := inventory.NumberToText(msgNumber)
+	fmt.Printf("%d : %s\n", msgNumber, newMsg)
 
 	// inventory.StartEncoder()
 }
