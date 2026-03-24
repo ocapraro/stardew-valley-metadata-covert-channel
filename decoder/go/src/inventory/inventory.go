@@ -61,7 +61,7 @@ func (i *Inventory) removeBlanks() {
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
-func (i Inventory) CalculateCombinations() []Inventory {
+func (i Inventory) calculateCombinations() []Inventory {
 	deblankedInventory := i.Copy()
 	deblankedInventory.collapse()
 	deblankedInventory.removeBlanks()
@@ -81,7 +81,7 @@ func (i Inventory) CalculateCombinations() []Inventory {
 	}
 
 	for blanks := 1; blanks <= blankCount; blanks++ {
-		spreads := CalculateSpread(uint8(blanks), uint8(len(stacks)))
+		spreads := calculateSpread(uint8(blanks), uint8(len(stacks)))
 		for _, spread := range spreads {
 			var spreadCombinations [][][]uint8
 			for stackIndex, fillsNeeded := range spread {
@@ -94,7 +94,7 @@ func (i Inventory) CalculateCombinations() []Inventory {
 				fillsNeeded++
 
 				spareItems := stack.Stack - fillsNeeded
-				spareSpread := SpreadSpares(spareItems, fillsNeeded)
+				spareSpread := spreadSpares(spareItems, fillsNeeded)
 				for row := range spareSpread {
 					for s := range spareSpread[row] {
 						spareSpread[row][s]++
@@ -173,9 +173,9 @@ func (i Inventory) Print() {
 	println()
 }
 
-// CalculateSpread generates all the different combinations of the numbers
+// calculateSpread generates all the different combinations of the numbers
 // of blank spaces to spread each stack by
-func CalculateSpread(blanks uint8, stacks uint8) [][]uint8 {
+func calculateSpread(blanks uint8, stacks uint8) [][]uint8 {
 	var spread [][]uint8
 	if blanks < 1 {
 		return [][]uint8{make([]uint8, stacks)}
@@ -186,7 +186,7 @@ func CalculateSpread(blanks uint8, stacks uint8) [][]uint8 {
 	blank := blanks
 	for {
 		nextBlanks := blanks - blank
-		for _, row := range CalculateSpread(nextBlanks, stacks-1) {
+		for _, row := range calculateSpread(nextBlanks, stacks-1) {
 			spread = append(spread, append([]uint8{blank}, row...))
 		}
 		if blank < 1 {
@@ -196,7 +196,7 @@ func CalculateSpread(blanks uint8, stacks uint8) [][]uint8 {
 	}
 }
 
-func SpreadSpares(spares uint8, blanks uint8) [][]uint8 {
+func spreadSpares(spares uint8, blanks uint8) [][]uint8 {
 	var spread [][]uint8
 	if spares < 1 {
 		return [][]uint8{make([]uint8, blanks)}
@@ -207,7 +207,7 @@ func SpreadSpares(spares uint8, blanks uint8) [][]uint8 {
 
 	nextStack := spares
 	for nextStack > 0 {
-		for _, row := range SpreadSpares(spares-nextStack, blanks-1) {
+		for _, row := range spreadSpares(spares-nextStack, blanks-1) {
 			if row[0] <= nextStack {
 				spread = append(spread, append([]uint8{nextStack}, row...))
 			}

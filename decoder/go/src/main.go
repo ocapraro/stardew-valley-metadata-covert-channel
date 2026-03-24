@@ -60,11 +60,6 @@ func main() {
 
 	// msg := "Lily"
 	// numberMsg := inventory.TextToNumber(msg)
-	// println(numberMsg)
+	println(len(currentInventory.Items))
 
-	combos := currentInventory.CalculateCombinations()
-	// for _, i := range combos {
-	// 	i.Print()
-	// }
-	println(len(combos))
 }
