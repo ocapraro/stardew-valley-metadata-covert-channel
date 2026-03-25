@@ -71,6 +71,8 @@ func StartDecoder() {
 			continue
 		}
 		inventory = newInventory
-		inventory.Print()
+		msgNumber := inventory.GetIndex()
+		msg := NumberToText(msgNumber)
+		println(msg)
 	}
 }
