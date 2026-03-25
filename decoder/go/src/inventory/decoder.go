@@ -47,7 +47,7 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 		if item.Name == nil || item.Stack == nil {
 			inventory.Items = append(inventory.Items, Item{
 				Name:  "Blank",
-				Stack: 1,
+				Stack: 0,
 			})
 		} else {
 			inventory.Items = append(inventory.Items, Item{
@@ -73,6 +73,6 @@ func StartDecoder() {
 		inventory = newInventory
 		msgNumber := inventory.GetIndex()
 		msg := NumberToText(msgNumber)
-		println(msg)
+		println(msgNumber, msg)
 	}
 }

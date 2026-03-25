@@ -76,15 +76,16 @@ func StartEncoder() {
 		},
 	}
 
+	message := "Lily"
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(Message{Message: "ok"})
 	})
 
-	mux.HandleFunc("GET /encode/{message}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /encode", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		message := r.PathValue("message")
 		numberMessage := TextToNumber(message)
 		variation := currentInventory.GetVariation(numberMessage)
 		json.NewEncoder(w).Encode(variation)
@@ -93,9 +94,20 @@ func StartEncoder() {
 	mux.HandleFunc("POST /setInventory", func(w http.ResponseWriter, r *http.Request) {
 		inventory := Inventory{}
 		json.NewDecoder(r.Body).Decode(&inventory)
-
 		currentInventory = inventory
+		count := 0
+		for _, permCount := range inventory.getCounts() {
+			count += int(permCount)
+		}
+		fmt.Printf("New inventory combinations: %d\n", count)
 		json.NewEncoder(w).Encode(Message{Message: "ok"})
+	})
+
+	mux.HandleFunc("POST /setMessage", func(w http.ResponseWriter, r *http.Request) {
+		newMessage := Message{}
+		json.NewDecoder(r.Body).Decode(&newMessage)
+		message = newMessage.Message
+		json.NewEncoder(w).Encode(Message{Message: fmt.Sprintf("Message set to: '%s'", message)})
 	})
 
 	server := &http.Server{
