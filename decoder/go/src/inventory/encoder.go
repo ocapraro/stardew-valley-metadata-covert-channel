@@ -94,5 +94,6 @@ func StartEncoder() {
 		Addr:    ":8080",
 		Handler: mux,
 	}
+	println("Encoder Started!")
 	print(server.ListenAndServe())
 }
