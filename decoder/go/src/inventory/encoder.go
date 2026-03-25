@@ -90,6 +90,14 @@ func StartEncoder() {
 		json.NewEncoder(w).Encode(variation)
 	})
 
+	mux.HandleFunc("POST /setInventory", func(w http.ResponseWriter, r *http.Request) {
+		inventory := Inventory{}
+		json.NewDecoder(r.Body).Decode(&inventory)
+
+		currentInventory = inventory
+		json.NewEncoder(w).Encode(Message{Message: "ok"})
+	})
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
