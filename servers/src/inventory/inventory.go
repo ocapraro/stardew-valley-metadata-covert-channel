@@ -139,15 +139,48 @@ func partitions(x uint8, y uint8) uint64 {
 }
 
 // Calculates the number of ways an item can be stacked
-func (item Item) waysForStackCount() map[uint8]uint64 {
+func (item Item) waysForStackCount(stop uint8) map[uint8]uint64 {
 	stackCounts := make(map[uint8]uint64)
-	for i := uint8(1); i <= item.Stack; i++ {
+	for i := uint8(1); i <= item.Stack && i <= stop; i++ {
 		stackCounts[i] = 0
 		if item.Stack >= i {
 			stackCounts[i] = partitions(item.Stack-i, i)
 		}
 	}
 	return stackCounts
+}
+
+func combineStackWays(all ...map[uint8]uint64) map[uint8]uint64 {
+	result := map[uint8]uint64{0: 1}
+
+	for _, ways := range all {
+		next := make(map[uint8]uint64)
+
+		for usedSoFar, countSoFar := range result {
+			for stacksForItem, itemCount := range ways {
+				next[usedSoFar+stacksForItem] += countSoFar * itemCount
+			}
+		}
+
+		result = next
+	}
+
+	return result
+}
+
+// calculateSpreadCounts calculates the number of possible inventories for each number of blanks
+func (i Inventory) calculateSpreadCounts() map[uint8]uint64 {
+	deblankedInventory := i.Copy()
+	deblankedInventory.collapse()
+	deblankedInventory.removeBlanks()
+	deblankedInventory.Sort()
+	var stackCounts []map[uint8]uint64
+
+	for _, item := range deblankedInventory.Items {
+		stackCounts = append(stackCounts, item.waysForStackCount(uint8(len(i.Items))))
+	}
+
+	return combineStackWays(stackCounts...)
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
