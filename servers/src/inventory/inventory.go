@@ -114,8 +114,45 @@ func decodeInventory(encodedInventory string) Inventory {
 	return i
 }
 
+// Calculates the number of ways x can be made via a sum of y positive numbers
+func partitions(x uint8, y uint8) uint64 {
+	if x == 0 || y == 1 {
+		return uint64(1)
+	}
+	if y == 0 {
+		return 0
+	}
+
+	// The general logic is that to calc the number of partitions, you can split
+	// them up into either partitions where at least one of the numbers being added
+	// is 0, meaning you are effectively conducting p(x, y-1), or partitions where
+	// none of the numbers added are zero, meaning that you are figuring out how to
+	// add y numbers together to get (x-y) since every number needs to be at least 1
+	// so that is simplified to p(x-y,y) so long as x>=y
+	withSumOfZero := partitions(x, y-1)
+	withoutSumOfZero := uint64(0)
+	if x >= y {
+		withoutSumOfZero = partitions(x-y, y)
+	}
+
+	return withSumOfZero + withoutSumOfZero
+}
+
+// Calculates the number of ways an item can be stacked
+func (item Item) waysForStackCount() map[uint8]uint64 {
+	stackCounts := make(map[uint8]uint64)
+	for i := uint8(1); i <= item.Stack; i++ {
+		stackCounts[i] = 0
+		if item.Stack >= i {
+			stackCounts[i] = partitions(item.Stack-i, i)
+		}
+	}
+	return stackCounts
+}
+
 // calculateCombinations gets each way the stacks in an inventory can be split
 func (i Inventory) calculateCombinations() []Inventory {
+	println("Calculating combinations")
 	deblankedInventory := i.Copy()
 	deblankedInventory.collapse()
 	deblankedInventory.removeBlanks()
@@ -213,7 +250,9 @@ func (i Inventory) getPermutationCount() uint64 {
 }
 
 func (i Inventory) getCounts() map[string]uint64 {
+	println("Getting counts")
 	inventories := i.calculateCombinations()
+	println("Calculated combos")
 	sort.Slice(inventories, func(j, k int) bool {
 		return fmt.Sprint(inventories[j].Items) < fmt.Sprint(inventories[k].Items)
 	})
@@ -236,7 +275,9 @@ func (i Inventory) getCounts() map[string]uint64 {
 
 // GetVariation gets the variation of a collapsed inventory at a given index
 func (i Inventory) GetVariation(target uint64) Inventory {
+	println("Getting variation")
 	inventoryCounts := i.getCounts()
+	println("Counts gotten")
 	var encodedInventories []string
 	for inventory := range inventoryCounts {
 		encodedInventories = append(encodedInventories, inventory)
