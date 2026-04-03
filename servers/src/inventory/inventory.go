@@ -188,7 +188,8 @@ func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 	deblankedInventory.Sort()
 	blankCount := uint8(len(i.Items) - len(deblankedInventory.Items))
 	var stackCounts []map[uint8]uint64
-	result := map[uint8]uint64{0: 1}
+	result := map[uint8]uint64{}
+	result[blankCount] = 1
 
 	for _, item := range deblankedInventory.Items {
 		stackCounts = append(stackCounts, item.waysForStackCount(blankCount+1))
@@ -218,16 +219,17 @@ func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 				sum += factorSum
 			}
 			sum *= float64(scalar)
-			result[fills] += uint64(sum)
+			result[blankCount-fills] += uint64(sum)
 		}
 	}
 
 	return result
 }
 
-// calculateSpreadPermutationCounts calculates the number of possible inventory permutations for each number of blanks
-func (i Inventory) calculateSpreadPermutationCounts() {
-
+// calculateSpreadPermutationBounds calculates the upper and lower bounds for the number of possible
+// inventory permutations for each number of blanks
+func (i Inventory) calculateSpreadPermutationBounds() {
+	// combinations := i.calculateSpreadCombinationCounts()
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
