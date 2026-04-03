@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -114,8 +115,8 @@ func decodeInventory(encodedInventory string) Inventory {
 	return i
 }
 
-// Calculates the number of ways x can be made via a sum of y positive numbers
-func partitions(x uint8, y uint8) uint64 {
+// partitionCounts calculates the number of ways x can be made via a sum of y positive numbers
+func partitionCounts(x uint8, y uint8) uint64 {
 	if x == 0 || y == 1 {
 		return uint64(1)
 	}
@@ -129,13 +130,28 @@ func partitions(x uint8, y uint8) uint64 {
 	// none of the numbers added are zero, meaning that you are figuring out how to
 	// add y numbers together to get (x-y) since every number needs to be at least 1
 	// so that is simplified to p(x-y,y) so long as x>=y
-	withSumOfZero := partitions(x, y-1)
+	withSumOfZero := partitionCounts(x, y-1)
 	withoutSumOfZero := uint64(0)
 	if x >= y {
-		withoutSumOfZero = partitions(x-y, y)
+		withoutSumOfZero = partitionCounts(x-y, y)
 	}
 
 	return withSumOfZero + withoutSumOfZero
+}
+
+// sumFactorization returns a list of all possible numbers that can sum up to x
+func sumFactorization(x uint8) []map[uint8]uint8 {
+	result := []map[uint8]uint8{{x: 1}}
+	for i := uint8(1); i < x; i++ {
+		factors := sumFactorization(x - i)
+		for _, factor := range factors {
+			if slices.Min(slices.Collect(maps.Keys(factor))) >= i {
+				factor[i]++
+				result = append(result, factor)
+			}
+		}
+	}
+	return result
 }
 
 // Calculates the number of ways an item can be stacked
@@ -144,43 +160,74 @@ func (item Item) waysForStackCount(stop uint8) map[uint8]uint64 {
 	for i := uint8(1); i <= item.Stack && i <= stop; i++ {
 		stackCounts[i] = 0
 		if item.Stack >= i {
-			stackCounts[i] = partitions(item.Stack-i, i)
+			stackCounts[i] = partitionCounts(item.Stack-i, i)
 		}
 	}
 	return stackCounts
 }
 
-func combineStackWays(all ...map[uint8]uint64) map[uint8]uint64 {
+func nCr(n, r uint64) uint64 {
+	if r > n {
+		return 0
+	}
+	if r > n/2 {
+		r = n - r // Use symmetry: nCr = nC(n-r)
+	}
+	res := uint64(1)
+	for i := uint64(1); i <= r; i++ {
+		res = res * (n - i + 1) / i
+	}
+	return res
+}
+
+// calculateSpreadCombinationCounts calculates the number of possible inventory combinations for each number of blanks
+func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
+	deblankedInventory := i.Copy()
+	deblankedInventory.collapse()
+	deblankedInventory.removeBlanks()
+	deblankedInventory.Sort()
+	blankCount := uint8(len(i.Items) - len(deblankedInventory.Items))
+	var stackCounts []map[uint8]uint64
 	result := map[uint8]uint64{0: 1}
 
-	for _, ways := range all {
-		next := make(map[uint8]uint64)
+	for _, item := range deblankedInventory.Items {
+		stackCounts = append(stackCounts, item.waysForStackCount(blankCount+1))
+	}
 
-		for usedSoFar, countSoFar := range result {
-			for stacksForItem, itemCount := range ways {
-				next[usedSoFar+stacksForItem] += countSoFar * itemCount
+	for fills := uint8(1); fills <= blankCount; fills++ {
+		// fills = 1, sum of all 2s
+		// fills = 2, sum of all 3s + the sum of all 2+2s [C(num_of_2s-1,1)*2s]
+		// fills = 3, sum of all 4s + the sum of all 3+2s [3s*num_of_2s + 2s*num_of_3s] + the sum of all 2+2+2s [C(num_of_2s-1,2)*2s]
+		// fills = 4, sum of all 5s + the sum of all 4+2s [4s*num_of_2s + 2s*num_of_4s] + the sum of all 3+3s [C(num_of_3s-1,1)*3s] + the sum of all 3+2+2s [C(num_of_2s-1,1)*2s*num_of_3s + 3s*C(num_of_2s,2)] + the sum of all 2+2+2+2s [C(num_of_2s-1,3)*2s]
+		// sum of all 4+3+2+2s = 4s*C(num_of_4s-1,0)*C(num_of_3s,1)*C(num_of_2s,2) + 3s*C(num_of_3s-1,0)*C(num_of_4s,1)*C(num_of_2s,2) + 2s*C(num_of_2s-1,1)*C(num_of_4s,1)*C(num_of_3s,1)
+		factorizations := sumFactorization(fills)
+		for _, factorization := range factorizations {
+			scalar := uint64(1)
+			sum := float64(0)
+			for factor, count := range factorization {
+				factorCount := uint64(0)
+				factorSum := float64(0)
+				for _, stackCount := range stackCounts {
+					if stackCount[factor+1] > 0 {
+						factorCount++
+						factorSum += float64(stackCount[factor+1])
+					}
+				}
+				factorSum *= float64(nCr(factorCount-1, uint64(count)-1)) / float64(nCr(factorCount, uint64(count)))
+				scalar *= nCr(factorCount, uint64(count))
+				sum += factorSum
 			}
+			sum *= float64(scalar)
+			result[fills] += uint64(sum)
 		}
-
-		result = next
 	}
 
 	return result
 }
 
-// calculateSpreadCounts calculates the number of possible inventories for each number of blanks
-func (i Inventory) calculateSpreadCounts() map[uint8]uint64 {
-	deblankedInventory := i.Copy()
-	deblankedInventory.collapse()
-	deblankedInventory.removeBlanks()
-	deblankedInventory.Sort()
-	var stackCounts []map[uint8]uint64
+// calculateSpreadPermutationCounts calculates the number of possible inventory permutations for each number of blanks
+func (i Inventory) calculateSpreadPermutationCounts() {
 
-	for _, item := range deblankedInventory.Items {
-		stackCounts = append(stackCounts, item.waysForStackCount(uint8(len(i.Items))))
-	}
-
-	return combineStackWays(stackCounts...)
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
