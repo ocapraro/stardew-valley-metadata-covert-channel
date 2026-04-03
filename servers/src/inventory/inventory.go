@@ -3,6 +3,7 @@ package inventory
 import (
 	"fmt"
 	"maps"
+	"math/big"
 	"slices"
 	"sort"
 	"strings"
@@ -180,6 +181,14 @@ func nCr(n, r uint64) uint64 {
 	return res
 }
 
+func factorialBig(n int64) *big.Int {
+	result := big.NewInt(1)
+	for i := int64(2); i <= n; i++ {
+		result.Mul(result, big.NewInt(i))
+	}
+	return result
+}
+
 // calculateSpreadCombinationCounts calculates the number of possible inventory combinations for each number of blanks
 func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 	deblankedInventory := i.Copy()
@@ -226,10 +235,45 @@ func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 	return result
 }
 
+type bounds struct {
+	Upper big.Int
+	Lower big.Int
+}
+
 // calculateSpreadPermutationBounds calculates the upper and lower bounds for the number of possible
 // inventory permutations for each number of blanks
-func (i Inventory) calculateSpreadPermutationBounds() {
-	// combinations := i.calculateSpreadCombinationCounts()
+func (i Inventory) calculateSpreadPermutationBounds() map[uint8]bounds {
+	deblankedInventory := i.Copy()
+	deblankedInventory.collapse()
+	deblankedInventory.removeBlanks()
+
+	result := make(map[uint8]bounds)
+	combinations := i.calculateSpreadCombinationCounts()
+	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
+	fillCount := len(i.Items) - len(deblankedInventory.Items)
+	fillCountFactorial := factorialBig(int64(fillCount + 1))
+	inventoryFillcountQuotient := new(big.Int)
+	inventoryFillcountQuotient.Div(inventoryLengthFactorial, fillCountFactorial)
+
+	for blanks, combination := range combinations {
+		b := bounds{}
+		blankCountFactorial := factorialBig(int64(blanks))
+
+		fullInventoryPermCount := new(big.Int)
+		fullInventoryPermCount.Div(inventoryLengthFactorial, blankCountFactorial)
+
+		// Upper bound is inventoryLength!/blankCount! * number of combinations
+		b.Upper = *new(big.Int)
+		b.Upper.Mul(big.NewInt(int64(combination)), fullInventoryPermCount)
+
+		// Lower bound is inventoryLength!/(blankCount!*(1+fillCount)!)
+		b.Lower = *new(big.Int)
+		b.Lower.Mul(big.NewInt(int64(combination)), inventoryFillcountQuotient)
+		b.Lower.Div(&b.Lower, blankCountFactorial)
+
+		result[blanks] = b
+	}
+	return result
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split
