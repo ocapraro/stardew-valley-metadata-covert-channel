@@ -162,6 +162,8 @@ func main() {
 		},
 	}
 
+	currentInventory.NewCache()
+
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)
 	// fmt.Printf("%s : %d\n", msg, numberMsg)
@@ -184,6 +186,14 @@ func main() {
 	// upperBitCount := logBigInt(upperCount) / logBigInt(big.NewInt(2))
 	// fmt.Println(lowerBitCount)
 	// fmt.Println(upperBitCount)
+
+	// fmt.Println(inventory.GetDuplicateWeight(4, 1, 4)) // 1
+	// fmt.Println(inventory.GetDuplicateWeight(4, 2, 4)) // 3/2
+	// fmt.Println(inventory.GetDuplicateWeight(4, 3, 4)) // 1/2
+	// fmt.Println(inventory.GetDuplicateWeight(4, 4, 4)) // 1/24
+
+	fmt.Println(currentInventory.Items[0].WaysForStackCount(12, currentInventory.Cache))
+	// fmt.Println(currentInventory.Cache)
 
 	// inventory.StartEncoder()
 	// inventory.StartDecoder()

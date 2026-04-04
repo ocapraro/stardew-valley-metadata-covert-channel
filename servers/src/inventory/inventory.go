@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+type cache struct {
+	smallFactorial   map[int]int
+	duplicateWeights map[[3]uint8]*big.Rat
+	partitionCounts  map[[2]uint8]uint64
+}
+
 type Item struct {
 	Name  string
 	Stack uint8
@@ -20,6 +26,15 @@ func (i Item) encode() string {
 
 type Inventory struct {
 	Items []Item
+	Cache cache
+}
+
+func (i *Inventory) NewCache() {
+	i.Cache = cache{
+		smallFactorial:   make(map[int]int),
+		duplicateWeights: make(map[[3]uint8]*big.Rat),
+		partitionCounts:  make(map[[2]uint8]uint64),
+	}
 }
 
 // Contains checks to see if an Item is in an Inventory
@@ -117,7 +132,12 @@ func decodeInventory(encodedInventory string) Inventory {
 }
 
 // partitionCounts calculates the number of ways x can be made via a sum of y positive numbers
-func partitionCounts(x uint8, y uint8) uint64 {
+func partitionCounts(x uint8, y uint8, c cache) uint64 {
+	key := [2]uint8{x, y}
+
+	if cached, ok := c.partitionCounts[key]; ok {
+		return cached
+	}
 	if x == 0 || y == 1 {
 		return uint64(1)
 	}
@@ -131,12 +151,13 @@ func partitionCounts(x uint8, y uint8) uint64 {
 	// none of the numbers added are zero, meaning that you are figuring out how to
 	// add y numbers together to get (x-y) since every number needs to be at least 1
 	// so that is simplified to p(x-y,y) so long as x>=y
-	withSumOfZero := partitionCounts(x, y-1)
+	withSumOfZero := partitionCounts(x, y-1, c)
 	withoutSumOfZero := uint64(0)
 	if x >= y {
-		withoutSumOfZero = partitionCounts(x-y, y)
+		withoutSumOfZero = partitionCounts(x-y, y, c)
 	}
 
+	c.partitionCounts[key] = withSumOfZero + withoutSumOfZero
 	return withSumOfZero + withoutSumOfZero
 }
 
@@ -155,14 +176,45 @@ func sumFactorization(x uint8) []map[uint8]uint8 {
 	return result
 }
 
-// Calculates the number of ways an item can be stacked
-func (item Item) waysForStackCount(stop uint8) map[uint8]uint64 {
-	stackCounts := make(map[uint8]uint64)
+func getDuplicateWeight(total, split, max uint8, c cache) *big.Rat {
+	key := [3]uint8{total, split, max}
+
+	if cached, ok := c.duplicateWeights[key]; ok {
+		return new(big.Rat).Set(cached)
+	}
+
+	if total == 0 && split == 0 {
+		return big.NewRat(1, 1)
+	}
+	if max == 0 || total == 0 || split == 0 {
+		return big.NewRat(0, 1)
+	}
+
+	limit := min(split, total/max)
+
+	result := new(big.Rat)
+	for i := uint8(0); i <= limit; i++ {
+		term := big.NewRat(1, int64(factorial(int(i), c)))
+		term.Mul(term, getDuplicateWeight(total-i*max, split-i, max-1, c))
+		result.Add(result, term)
+	}
+	c.duplicateWeights[key] = new(big.Rat).Set(result)
+	return result
+}
+
+type spread struct {
+	Stacks             uint8
+	DuplicateFactorial *big.Rat
+}
+
+// WaysForStackCount calculates the number of ways an item can be stacked
+func (item Item) WaysForStackCount(stop uint8, c cache) map[spread]uint64 {
+	stackCounts := make(map[spread]uint64)
 	for i := uint8(1); i <= item.Stack && i <= stop; i++ {
-		stackCounts[i] = 0
-		if item.Stack >= i {
-			stackCounts[i] = partitionCounts(item.Stack-i, i)
-		}
+		currentSpread := spread{}
+		currentSpread.Stacks = i
+		currentSpread.DuplicateFactorial = getDuplicateWeight(item.Stack, i, item.Stack, c)
+		stackCounts[currentSpread] = partitionCounts(item.Stack-i, i, c)
 	}
 	return stackCounts
 }
@@ -200,9 +252,9 @@ func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 	result := map[uint8]uint64{}
 	result[blankCount] = 1
 
-	for _, item := range deblankedInventory.Items {
-		stackCounts = append(stackCounts, item.waysForStackCount(blankCount+1))
-	}
+	// for _, item := range deblankedInventory.Items {
+	// 	stackCounts = append(stackCounts, item.waysForStackCount(blankCount+1))
+	// }
 
 	for fills := uint8(1); fills <= blankCount; fills++ {
 		// fills = 1, sum of all 2s
@@ -369,9 +421,9 @@ func (i Inventory) getPermutationCount() uint64 {
 	denominator := 1
 	for _, itemCount := range abstract {
 		numerator += int(itemCount)
-		denominator *= factorial(int(itemCount))
+		denominator *= factorial(int(itemCount), i.Cache)
 	}
-	numerator = factorial(numerator)
+	numerator = factorial(numerator, i.Cache)
 	return uint64(numerator / denominator)
 }
 
@@ -505,6 +557,7 @@ func (i Inventory) GetIndex() uint64 {
 func (i Inventory) Copy() Inventory {
 	copiedInventory := Inventory{
 		Items: make([]Item, len(i.Items)),
+		Cache: i.Cache,
 	}
 	copy(copiedInventory.Items, i.Items)
 	return copiedInventory
@@ -591,7 +644,10 @@ func spreadSpares(spares uint8, blanks uint8) [][]uint8 {
 	return spread
 }
 
-func factorial(n int) int {
+func factorial(n int, c cache) int {
+	if c.smallFactorial[n] > 0 {
+		return c.smallFactorial[n]
+	}
 	if n <= 1 {
 		return 1
 	}
@@ -599,5 +655,6 @@ func factorial(n int) int {
 	for i := 2; i <= n; i++ {
 		result *= i
 	}
+	c.smallFactorial[n] = result
 	return result
 }
