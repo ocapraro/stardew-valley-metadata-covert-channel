@@ -2,7 +2,6 @@ package inventory
 
 import (
 	"fmt"
-	"maps"
 	"math/big"
 	"slices"
 	"sort"
@@ -10,9 +9,11 @@ import (
 )
 
 type cache struct {
-	smallFactorial   map[int]int
-	duplicateWeights map[[3]uint8]*big.Rat
-	partitionCounts  map[[2]uint8]uint64
+	smallFactorial    map[int]int
+	duplicateWeights  map[[3]uint8]*big.Rat
+	partitionCounts   map[[2]uint8]uint64
+	sumFactorizations map[uint8][][]uint8
+	perms             map[[2]uint8][][]uint8
 }
 
 type Item struct {
@@ -31,9 +32,11 @@ type Inventory struct {
 
 func (i *Inventory) NewCache() {
 	i.Cache = cache{
-		smallFactorial:   make(map[int]int),
-		duplicateWeights: make(map[[3]uint8]*big.Rat),
-		partitionCounts:  make(map[[2]uint8]uint64),
+		smallFactorial:    make(map[int]int),
+		duplicateWeights:  make(map[[3]uint8]*big.Rat),
+		partitionCounts:   make(map[[2]uint8]uint64),
+		sumFactorizations: make(map[uint8][][]uint8),
+		perms:             make(map[[2]uint8][][]uint8),
 	}
 }
 
@@ -162,17 +165,25 @@ func partitionCounts(x uint8, y uint8, c cache) uint64 {
 }
 
 // sumFactorization returns a list of all possible numbers that can sum up to x
-func sumFactorization(x uint8) []map[uint8]uint8 {
-	result := []map[uint8]uint8{{x: 1}}
+func sumFactorization(x uint8, c cache) [][]uint8 {
+	if cached, ok := c.sumFactorizations[x]; ok {
+		out := make([][]uint8, len(cached))
+		copy(out, cached)
+		return out
+	}
+	result := [][]uint8{{x}}
 	for i := uint8(1); i < x; i++ {
-		factors := sumFactorization(x - i)
-		for _, factor := range factors {
-			if slices.Min(slices.Collect(maps.Keys(factor))) >= i {
-				factor[i]++
-				result = append(result, factor)
+		for _, subResult := range sumFactorization(x-i, c) {
+			if slices.Min(subResult) >= i {
+				result = append(result, append([]uint8{i}, subResult...))
 			}
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return len(result[i]) < len(result[j])
+	})
+	c.sumFactorizations[x] = make([][]uint8, len(result))
+	copy(c.sumFactorizations[x], result)
 	return result
 }
 
@@ -202,19 +213,11 @@ func getDuplicateWeight(total, split, max uint8, c cache) *big.Rat {
 	return result
 }
 
-type spread struct {
-	Stacks             uint8
-	DuplicateFactorial *big.Rat
-}
-
-// WaysForStackCount calculates the number of ways an item can be stacked
-func (item Item) WaysForStackCount(stop uint8, c cache) map[spread]uint64 {
-	stackCounts := make(map[spread]uint64)
+// waysForStackCount calculates the number of ways an item can be stacked
+func (item Item) waysForStackCount(stop uint8, c cache) map[uint8]*big.Rat {
+	stackCounts := make(map[uint8]*big.Rat)
 	for i := uint8(1); i <= item.Stack && i <= stop; i++ {
-		currentSpread := spread{}
-		currentSpread.Stacks = i
-		currentSpread.DuplicateFactorial = getDuplicateWeight(item.Stack, i, item.Stack, c)
-		stackCounts[currentSpread] = partitionCounts(item.Stack-i, i, c)
+		stackCounts[i] = getDuplicateWeight(item.Stack, i, item.Stack, c)
 	}
 	return stackCounts
 }
@@ -241,47 +244,52 @@ func factorialBig(n int64) *big.Int {
 	return result
 }
 
-// calculateSpreadCombinationCounts calculates the number of possible inventory combinations for each number of blanks
-func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
+// combineSpreads returns a combined mapping of 2 spreads, combining their weights
+func combineSpreads(s1, s2 map[uint8]*big.Rat) map[uint8]*big.Rat {
+	combinedSpreads := map[uint8]*big.Rat{}
+	for extra1, weight1 := range s1 {
+		for fills2, weight2 := range s2 {
+			extra2 := fills2 - 1
+			combinedWeight := new(big.Rat)
+			combinedWeight.Mul(weight1, weight2)
+			if combinedSpreads[extra1+extra2] == nil {
+				combinedSpreads[extra1+extra2] = new(big.Rat)
+			}
+			combinedSpreads[extra1+extra2].Add(combinedSpreads[extra1+extra2], combinedWeight)
+		}
+	}
+	return combinedSpreads
+}
+
+// calculateSpreadPermutationCounts calculates the number of possible inventory perms for each number of blanks
+func (i Inventory) CalculateSpreadPermutationCounts() map[uint8]*big.Rat {
 	deblankedInventory := i.Copy()
 	deblankedInventory.collapse()
 	deblankedInventory.removeBlanks()
 	deblankedInventory.Sort()
 	blankCount := uint8(len(i.Items) - len(deblankedInventory.Items))
-	var stackCounts []map[uint8]uint64
-	result := map[uint8]uint64{}
-	result[blankCount] = 1
+	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
 
-	// for _, item := range deblankedInventory.Items {
-	// 	stackCounts = append(stackCounts, item.waysForStackCount(blankCount+1))
-	// }
+	result := map[uint8]*big.Rat{}
 
-	for fills := uint8(1); fills <= blankCount; fills++ {
-		// fills = 1, sum of all 2s
-		// fills = 2, sum of all 3s + the sum of all 2+2s [C(num_of_2s-1,1)*2s]
-		// fills = 3, sum of all 4s + the sum of all 3+2s [3s*num_of_2s + 2s*num_of_3s] + the sum of all 2+2+2s [C(num_of_2s-1,2)*2s]
-		// fills = 4, sum of all 5s + the sum of all 4+2s [4s*num_of_2s + 2s*num_of_4s] + the sum of all 3+3s [C(num_of_3s-1,1)*3s] + the sum of all 3+2+2s [C(num_of_2s-1,1)*2s*num_of_3s + 3s*C(num_of_2s,2)] + the sum of all 2+2+2+2s [C(num_of_2s-1,3)*2s]
-		// sum of all 4+3+2+2s = 4s*C(num_of_4s-1,0)*C(num_of_3s,1)*C(num_of_2s,2) + 3s*C(num_of_3s-1,0)*C(num_of_4s,1)*C(num_of_2s,2) + 2s*C(num_of_2s-1,1)*C(num_of_4s,1)*C(num_of_3s,1)
-		factorizations := sumFactorization(fills)
-		for _, factorization := range factorizations {
-			scalar := uint64(1)
-			sum := float64(0)
-			for factor, count := range factorization {
-				factorCount := uint64(0)
-				factorSum := float64(0)
-				for _, stackCount := range stackCounts {
-					if stackCount[factor+1] > 0 {
-						factorCount++
-						factorSum += float64(stackCount[factor+1])
-					}
-				}
-				factorSum *= float64(nCr(factorCount-1, uint64(count)-1)) / float64(nCr(factorCount, uint64(count)))
-				scalar *= nCr(factorCount, uint64(count))
-				sum += factorSum
-			}
-			sum *= float64(scalar)
-			result[blankCount-fills] += uint64(sum)
+	combinedSpreads := map[uint8]*big.Rat{
+		0: big.NewRat(1, 1),
+	}
+
+	for _, item := range deblankedInventory.Items {
+		if item.Stack > 1 {
+			combinedSpreads = combineSpreads(combinedSpreads, item.waysForStackCount(blankCount+1, i.Cache))
 		}
+	}
+
+	for extra := uint8(0); extra <= blankCount; extra++ {
+		if combinedSpreads[extra] == nil {
+			break
+		}
+		blankCountFactorial := factorialBig(int64(blankCount - extra))
+		permCount := new(big.Rat).SetFrac(inventoryLengthFactorial, blankCountFactorial)
+		permCount.Mul(permCount, combinedSpreads[extra])
+		result[blankCount-extra] = permCount
 	}
 
 	return result
@@ -290,42 +298,6 @@ func (i Inventory) calculateSpreadCombinationCounts() map[uint8]uint64 {
 type bounds struct {
 	Upper big.Int
 	Lower big.Int
-}
-
-// calculateSpreadPermutationBounds calculates the upper and lower bounds for the number of possible
-// inventory permutations for each number of blanks
-func (i Inventory) calculateSpreadPermutationBounds() map[uint8]bounds {
-	deblankedInventory := i.Copy()
-	deblankedInventory.collapse()
-	deblankedInventory.removeBlanks()
-
-	result := make(map[uint8]bounds)
-	combinations := i.calculateSpreadCombinationCounts()
-	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
-	fillCount := len(i.Items) - len(deblankedInventory.Items)
-	fillCountFactorial := factorialBig(int64(fillCount + 1))
-	inventoryFillcountQuotient := new(big.Int)
-	inventoryFillcountQuotient.Div(inventoryLengthFactorial, fillCountFactorial)
-
-	for blanks, combination := range combinations {
-		b := bounds{}
-		blankCountFactorial := factorialBig(int64(blanks))
-
-		fullInventoryPermCount := new(big.Int)
-		fullInventoryPermCount.Div(inventoryLengthFactorial, blankCountFactorial)
-
-		// Upper bound is inventoryLength!/blankCount! * number of combinations
-		b.Upper = *new(big.Int)
-		b.Upper.Mul(big.NewInt(int64(combination)), fullInventoryPermCount)
-
-		// Lower bound is inventoryLength!/(blankCount!*(1+fillCount)!)
-		b.Lower = *new(big.Int)
-		b.Lower.Mul(big.NewInt(int64(combination)), inventoryFillcountQuotient)
-		b.Lower.Div(&b.Lower, blankCountFactorial)
-
-		result[blanks] = b
-	}
-	return result
 }
 
 // calculateCombinations gets each way the stacks in an inventory can be split

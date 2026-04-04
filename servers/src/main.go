@@ -17,10 +17,82 @@ func main() {
 		Items: []inventory.Item{
 			{
 				Name:  "Parsnip Seeds",
-				Stack: 85,
+				Stack: 99,
 			},
 			{
-				Name:  "Apple",
+				Name:  "Cauliflower Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Potato Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Strawberry Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Melon Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Tomato Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Blueberry Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Pumpkin Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Bok Choy Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Yam Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Cranberry Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Artichoke Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Parsnip",
+				Stack: 99,
+			},
+			{
+				Name:  "Cauliflower",
+				Stack: 99,
+			},
+			{
+				Name:  "Potato",
+				Stack: 99,
+			},
+			{
+				Name:  "Strawberry",
+				Stack: 99,
+			},
+			{
+				Name:  "Melon",
+				Stack: 99,
+			},
+			{
+				Name:  "Tomato",
+				Stack: 99,
+			},
+			{
+				Name:  "Pumpkin",
+				Stack: 99,
+			},
+			{
+				Name:  "Hoe",
 				Stack: 99,
 			},
 			{
@@ -28,136 +100,64 @@ func main() {
 				Stack: 99,
 			},
 			{
-				Name:  "Watering Can",
+				Name:  "Axe",
 				Stack: 99,
 			},
 			{
-				Name:  "Parsnip Seeds",
-				Stack: 2,
-			},
-			{
-				Name:  "Parsnip Seeds",
-				Stack: 1,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Watering Can",
+				Stack: 99,
 			},
 			{
 				Name:  "Scythe",
 				Stack: 99,
 			},
 			{
+				Name:  "aBlank",
+				Stack: 99,
+			},
+			{
+				Name:  "bBlank",
+				Stack: 99,
+			},
+			{
 				Name:  "Blank",
 				Stack: 0,
 			},
 			{
-				Name:  "Parsnip Seeds",
-				Stack: 5,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Parsnip Seeds",
-				Stack: 6,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Hoe",
-				Stack: 2,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Parsnip Seeds2",
-				Stack: 85,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Apple2",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Pickaxe2",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Watering Can2",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Parsnip Seeds2",
-				Stack: 2,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Parsnip Seeds2",
-				Stack: 1,
-			},
-			{
-				Name:  "ahaaa",
-				Stack: 99,
-			},
-			{
-				Name:  "Scythe2",
-				Stack: 99,
-			},
-			{
-				Name:  "aaaga",
-				Stack: 99,
-			},
-			{
-				Name:  "Parsnip Seeds2",
-				Stack: 5,
-			},
-			{
-				Name:  "Parsnip Seeds2",
-				Stack: 6,
-			},
-			{
-				Name:  "Hoe2",
-				Stack: 99,
-			},
-			{
-				Name:  "Parsnip Seeds3",
-				Stack: 85,
-			},
-			{
-				Name:  "Apple3",
-				Stack: 99,
-			},
-			{
-				Name:  "Pickaxe3",
-				Stack: 99,
-			},
-			{
-				Name:  "Watering Can3",
-				Stack: 99,
-			},
-			{
-				Name:  "Parsnip Seeds3",
-				Stack: 3,
-			},
-			{
-				Name:  "Parsnip Seeds3",
-				Stack: 1,
-			},
-			{
-				Name:  "aaaa",
-				Stack: 99,
-			},
-			{
-				Name:  "Scythe3",
-				Stack: 99,
-			},
-			{
-				Name:  "test",
-				Stack: 99,
-			},
-			{
-				Name:  "Parsnip Seeds3",
-				Stack: 5,
-			},
-			{
-				Name:  "Parsnip Seeds3",
-				Stack: 6,
-			},
-			{
-				Name:  "Hoe3",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 		},
 	}
@@ -167,7 +167,7 @@ func main() {
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)
 	// fmt.Printf("%s : %d\n", msg, numberMsg)
-	fmt.Println(len(currentInventory.Items))
+	// fmt.Println(len(currentInventory.Items))
 	// variation := currentInventory.GetVariation(numberMsg)
 	// variation.Print()
 	// msgNumber := currentInventory.GetIndex()
@@ -192,8 +192,40 @@ func main() {
 	// fmt.Println(inventory.GetDuplicateWeight(4, 3, 4)) // 1/2
 	// fmt.Println(inventory.GetDuplicateWeight(4, 4, 4)) // 1/24
 
-	fmt.Println(currentInventory.Items[0].WaysForStackCount(12, currentInventory.Cache))
+	// fmt.Println(currentInventory.Items[0].WaysForStackCount(12, currentInventory.Cache))
 	// fmt.Println(currentInventory.Cache)
+
+	// fmt.Println(inventory.SumFactorization(4))
+
+	permCounts := currentInventory.CalculateSpreadPermutationCounts()
+	total := new(big.Rat)
+	for _, permCount := range permCounts {
+		total.Add(total, permCount)
+	}
+	totalApproxBits := total.Num().BitLen() - total.Denom().BitLen()
+	fmt.Println(total, totalApproxBits)
+
+	// ========== COMBINING STACKS TEST ==============
+	// items := []inventory.Item{
+	// 	{
+	// 		Name:  "Apples",
+	// 		Stack: 3,
+	// 	},
+	// 	{
+	// 		Name:  "Oranges",
+	// 		Stack: 4,
+	// 	},
+	// }
+
+	// combinedSpreads := map[uint8]*big.Rat{
+	// 	0: big.NewRat(1, 1),
+	// }
+
+	// for _, item := range items {
+	// 	combinedSpreads = inventory.CombineSpreads(combinedSpreads, item.WaysForStackCount(5, currentInventory.Cache))
+	// }
+
+	// fmt.Println(combinedSpreads)
 
 	// inventory.StartEncoder()
 	// inventory.StartDecoder()
