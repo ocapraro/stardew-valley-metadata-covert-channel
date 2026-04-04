@@ -12,6 +12,55 @@ func logBigInt(n *big.Int) float64 {
 	return math.Log(f)
 }
 
+func totalInventoryBits(current inventory.Inventory) int {
+	permCounts := current.CalculateSpreadPermutationCounts()
+	total := new(big.Rat)
+	for _, permCount := range permCounts {
+		total.Add(total, permCount)
+	}
+	if total.Sign() <= 0 {
+		return 0
+	}
+	if total.IsInt() {
+		count := new(big.Int).Set(total.Num())
+		if count.Cmp(big.NewInt(1)) <= 0 {
+			return 0
+		}
+		count.Sub(count, big.NewInt(1))
+		return count.BitLen()
+	}
+
+	f, _ := total.Float64()
+	if f <= 1 {
+		return 0
+	}
+	return int(math.Ceil(math.Log2(f)))
+}
+
+func fillInventoryAndPrintBits(current *inventory.Inventory) {
+	step := 0
+	for {
+		fmt.Printf("Step %02d: %d bits\n", step, totalInventoryBits(*current))
+
+		nextBlank := -1
+		for index, item := range current.Items {
+			if item.Stack == 0 {
+				nextBlank = index
+				break
+			}
+		}
+		if nextBlank < 0 {
+			return
+		}
+
+		step++
+		current.Items[nextBlank] = inventory.Item{
+			Name:  fmt.Sprintf("Unique Item %02d", step),
+			Stack: 99,
+		}
+	}
+}
+
 func main() {
 	currentInventory := inventory.Inventory{
 		Items: []inventory.Item{
@@ -20,104 +69,104 @@ func main() {
 				Stack: 99,
 			},
 			{
-				Name:  "Cauliflower Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Potato Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Strawberry Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Melon Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Tomato Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Blueberry Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Pumpkin Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Bok Choy Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Yam Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Cranberry Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Artichoke Seeds",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Parsnip",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Cauliflower",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Potato",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Strawberry",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Melon",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Tomato",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Pumpkin",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Hoe",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Pickaxe",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Axe",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Watering Can",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Scythe",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "aBlank",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "bBlank",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
 				Name:  "Blank",
@@ -164,6 +213,9 @@ func main() {
 
 	currentInventory.NewCache()
 
+	fmt.Println("Starting...")
+	fillInventoryAndPrintBits(&currentInventory)
+
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)
 	// fmt.Printf("%s : %d\n", msg, numberMsg)
@@ -196,14 +248,6 @@ func main() {
 	// fmt.Println(currentInventory.Cache)
 
 	// fmt.Println(inventory.SumFactorization(4))
-
-	permCounts := currentInventory.CalculateSpreadPermutationCounts()
-	total := new(big.Rat)
-	for _, permCount := range permCounts {
-		total.Add(total, permCount)
-	}
-	totalApproxBits := total.Num().BitLen() - total.Denom().BitLen()
-	fmt.Println(total, totalApproxBits)
 
 	// ========== COMBINING STACKS TEST ==============
 	// items := []inventory.Item{

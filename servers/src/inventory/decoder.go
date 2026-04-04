@@ -23,7 +23,7 @@ func NumberToText(number uint64) string {
 
 type xmlItem struct {
 	Name  *string `xml:"name"`
-	Stack *uint8  `xml:"stack"`
+	Stack *uint16 `xml:"stack"`
 }
 
 type xmlRoot struct {

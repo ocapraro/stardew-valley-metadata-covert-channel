@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"maps"
 	"math/big"
 	"slices"
 	"sort"
@@ -10,7 +11,7 @@ import (
 
 type cache struct {
 	smallFactorial    map[int]int
-	duplicateWeights  map[[3]uint8]*big.Rat
+	duplicateWeights  map[[3]uint16]*big.Rat
 	partitionCounts   map[[2]uint8]uint64
 	sumFactorizations map[uint8][][]uint8
 	perms             map[[2]uint8][][]uint8
@@ -18,7 +19,7 @@ type cache struct {
 
 type Item struct {
 	Name  string
-	Stack uint8
+	Stack uint16
 }
 
 func (i Item) encode() string {
@@ -33,7 +34,7 @@ type Inventory struct {
 func (i *Inventory) NewCache() {
 	i.Cache = cache{
 		smallFactorial:    make(map[int]int),
-		duplicateWeights:  make(map[[3]uint8]*big.Rat),
+		duplicateWeights:  make(map[[3]uint16]*big.Rat),
 		partitionCounts:   make(map[[2]uint8]uint64),
 		sumFactorizations: make(map[uint8][][]uint8),
 		perms:             make(map[[2]uint8][][]uint8),
@@ -48,7 +49,7 @@ func (i Inventory) Contains(target Item) bool {
 // collapse combines all stacks of the same item
 func (i *Inventory) collapse() {
 	length := len(i.Items)
-	counts := make(map[string]uint8)
+	counts := make(map[string]uint16)
 	for _, item := range i.Items {
 		if item.Stack < 1 {
 			continue
@@ -122,7 +123,7 @@ func decodeInventory(encodedInventory string) Inventory {
 		}
 
 		name := parts[0]
-		var stack uint8
+		var stack uint16
 		fmt.Sscanf(parts[1], "%d", &stack)
 
 		i.Items = append(i.Items, Item{
@@ -187,8 +188,8 @@ func sumFactorization(x uint8, c cache) [][]uint8 {
 	return result
 }
 
-func getDuplicateWeight(total, split, max uint8, c cache) *big.Rat {
-	key := [3]uint8{total, split, max}
+func getDuplicateWeight(total, split, max uint16, c cache) *big.Rat {
+	key := [3]uint16{total, split, max}
 
 	if cached, ok := c.duplicateWeights[key]; ok {
 		return new(big.Rat).Set(cached)
@@ -204,7 +205,7 @@ func getDuplicateWeight(total, split, max uint8, c cache) *big.Rat {
 	limit := min(split, total/max)
 
 	result := new(big.Rat)
-	for i := uint8(0); i <= limit; i++ {
+	for i := uint16(0); i <= limit; i++ {
 		term := big.NewRat(1, int64(factorial(int(i), c)))
 		term.Mul(term, getDuplicateWeight(total-i*max, split-i, max-1, c))
 		result.Add(result, term)
@@ -216,8 +217,8 @@ func getDuplicateWeight(total, split, max uint8, c cache) *big.Rat {
 // waysForStackCount calculates the number of ways an item can be stacked
 func (item Item) waysForStackCount(stop uint8, c cache) map[uint8]*big.Rat {
 	stackCounts := make(map[uint8]*big.Rat)
-	for i := uint8(1); i <= item.Stack && i <= stop; i++ {
-		stackCounts[i] = getDuplicateWeight(item.Stack, i, item.Stack, c)
+	for i := uint8(1); uint16(i) <= item.Stack && i <= stop; i++ {
+		stackCounts[i-1] = getDuplicateWeight(item.Stack, uint16(i), item.Stack, c)
 	}
 	return stackCounts
 }
@@ -245,17 +246,27 @@ func factorialBig(n int64) *big.Int {
 }
 
 // combineSpreads returns a combined mapping of 2 spreads, combining their weights
-func combineSpreads(s1, s2 map[uint8]*big.Rat) map[uint8]*big.Rat {
+func combineSpreads(s1, s2 map[uint8]*big.Rat, blankCount uint8) map[uint8]*big.Rat {
 	combinedSpreads := map[uint8]*big.Rat{}
-	for extra1, weight1 := range s1 {
-		for fills2, weight2 := range s2 {
-			extra2 := fills2 - 1
+	s1Keys := slices.Collect(maps.Keys(s1))
+	s2Keys := slices.Collect(maps.Keys(s2))
+	slices.Sort(s1Keys)
+	slices.Sort(s2Keys)
+
+	for _, extra1 := range s1Keys {
+		weight1 := new(big.Rat).Set(s1[extra1])
+		for _, extra2 := range s2Keys {
+			weight2 := new(big.Rat).Set(s2[extra2])
 			combinedWeight := new(big.Rat)
 			combinedWeight.Mul(weight1, weight2)
-			if combinedSpreads[extra1+extra2] == nil {
-				combinedSpreads[extra1+extra2] = new(big.Rat)
+			newExtra := extra1 + extra2
+			if newExtra > blankCount {
+				break
 			}
-			combinedSpreads[extra1+extra2].Add(combinedSpreads[extra1+extra2], combinedWeight)
+			if combinedSpreads[newExtra] == nil {
+				combinedSpreads[newExtra] = new(big.Rat)
+			}
+			combinedSpreads[newExtra].Add(combinedSpreads[newExtra], combinedWeight)
 		}
 	}
 	return combinedSpreads
@@ -278,17 +289,19 @@ func (i Inventory) CalculateSpreadPermutationCounts() map[uint8]*big.Rat {
 
 	for _, item := range deblankedInventory.Items {
 		if item.Stack > 1 {
-			combinedSpreads = combineSpreads(combinedSpreads, item.waysForStackCount(blankCount+1, i.Cache))
+			spread := item.waysForStackCount(blankCount+1, i.Cache)
+			combinedSpreads = combineSpreads(combinedSpreads, spread, blankCount)
 		}
 	}
 
 	for extra := uint8(0); extra <= blankCount; extra++ {
 		if combinedSpreads[extra] == nil {
-			break
+			continue
 		}
 		blankCountFactorial := factorialBig(int64(blankCount - extra))
 		permCount := new(big.Rat).SetFrac(inventoryLengthFactorial, blankCountFactorial)
 		permCount.Mul(permCount, combinedSpreads[extra])
+
 		result[blankCount-extra] = permCount
 	}
 
@@ -307,82 +320,82 @@ func (i Inventory) calculateCombinations() []Inventory {
 	deblankedInventory.collapse()
 	deblankedInventory.removeBlanks()
 	deblankedInventory.Sort()
-	blankCount := len(i.Items) - len(deblankedInventory.Items)
+	// blankCount := len(i.Items) - len(deblankedInventory.Items)
 
 	inventoryCombinations := []Inventory{
 		deblankedInventory.Copy(),
 	}
 
-	var stacks []Item
-	for _, item := range deblankedInventory.Items {
-		if item.Stack < 2 {
-			continue
-		}
-		stacks = append(stacks, item)
-	}
+	// var stacks []Item
+	// for _, item := range deblankedInventory.Items {
+	// 	if item.Stack < 2 {
+	// 		continue
+	// 	}
+	// 	stacks = append(stacks, item)
+	// }
 
-	for blanks := 1; blanks <= blankCount; blanks++ {
-		spreads := calculateSpread(uint8(blanks), uint8(len(stacks)))
-		for _, spread := range spreads {
-			var spreadCombinations [][][]uint8
-			for stackIndex, fillsNeeded := range spread {
-				stack := stacks[stackIndex]
-				// Make sure the stack can actually fill the number of slots assigned to it here
-				if stack.Stack <= fillsNeeded {
-					continue
-				}
-				// Add the initial slot
-				fillsNeeded++
+	// for blanks := 1; blanks <= blankCount; blanks++ {
+	// 	spreads := calculateSpread(uint8(blanks), uint8(len(stacks)))
+	// 	for _, spread := range spreads {
+	// 		var spreadCombinations [][][]uint16
+	// 		for stackIndex, fillsNeeded := range spread {
+	// 			stack := stacks[stackIndex]
+	// 			// Make sure the stack can actually fill the number of slots assigned to it here
+	// 			if stack.Stack <= fillsNeeded {
+	// 				continue
+	// 			}
+	// 			// Add the initial slot
+	// 			fillsNeeded++
 
-				spareItems := stack.Stack - fillsNeeded
-				spareSpread := spreadSpares(spareItems, fillsNeeded)
-				for row := range spareSpread {
-					for s := range spareSpread[row] {
-						spareSpread[row][s]++
-					}
-				}
-				spreadCombinations = append(spreadCombinations, spareSpread)
+	// 			spareItems := stack.Stack - fillsNeeded
+	// 			spareSpread := spreadSpares(spareItems, fillsNeeded)
+	// 			for row := range spareSpread {
+	// 				for s := range spareSpread[row] {
+	// 					spareSpread[row][s]++
+	// 				}
+	// 			}
+	// 			spreadCombinations = append(spreadCombinations, spareSpread)
 
-			}
-			stackCombinations := []Inventory{{}}
-			stackIndex := 0
-			for len(spreadCombinations) > 0 {
-				previousStackCombinations := stackCombinations
-				stackCombinations = []Inventory{}
+	// 		}
+	// 		stackCombinations := []Inventory{{}}
+	// 		stackIndex := 0
+	// 		for len(spreadCombinations) > 0 {
+	// 			previousStackCombinations := stackCombinations
+	// 			stackCombinations = []Inventory{}
 
-				spreads := spreadCombinations[0]
-				currentStack := stacks[stackIndex]
-				spreadCombinations = spreadCombinations[1:]
-				stackIndex++
-				for _, currentSpread := range spreads {
-					var stackCombinationAddition Inventory
-					for _, quantity := range currentSpread {
-						stackCombinationAddition.Items = append(stackCombinationAddition.Items, Item{
-							Name:  currentStack.Name,
-							Stack: quantity,
-						})
-					}
-					for _, stackCombination := range previousStackCombinations {
-						newStackCombination := stackCombination.Copy()
-						newStackCombination.Items = append(newStackCombination.Items, stackCombinationAddition.Copy().Items...)
-						stackCombinations = append(stackCombinations, newStackCombination)
-					}
-				}
+	// 			spreads := spreadCombinations[0]
+	// 			currentStack := stacks[stackIndex]
+	// 			spreadCombinations = spreadCombinations[1:]
+	// 			stackIndex++
+	// 			for _, currentSpread := range spreads {
+	// 				var stackCombinationAddition Inventory
+	// 				for _, quantity := range currentSpread {
+	// 					stackCombinationAddition.Items = append(stackCombinationAddition.Items, Item{
+	// 						Name:  currentStack.Name,
+	// 						Stack: quantity,
+	// 					})
+	// 				}
+	// 				for _, stackCombination := range previousStackCombinations {
+	// 					newStackCombination := stackCombination.Copy()
+	// 					newStackCombination.Items = append(newStackCombination.Items, stackCombinationAddition.Copy().Items...)
+	// 					stackCombinations = append(stackCombinations, newStackCombination)
+	// 				}
+	// 			}
 
-			}
-			for _, stackCombination := range stackCombinations {
-				for _, item := range deblankedInventory.Items {
-					if item.Stack > 1 {
-						continue
-					}
-					stackCombination.Items = append(stackCombination.Items, item)
-				}
-				stackCombination = stackCombination.Copy()
-				stackCombination.Sort()
-				inventoryCombinations = append(inventoryCombinations, stackCombination)
-			}
-		}
-	}
+	// 		}
+	// 		for _, stackCombination := range stackCombinations {
+	// 			for _, item := range deblankedInventory.Items {
+	// 				if item.Stack > 1 {
+	// 					continue
+	// 				}
+	// 				stackCombination.Items = append(stackCombination.Items, item)
+	// 			}
+	// 			stackCombination = stackCombination.Copy()
+	// 			stackCombination.Sort()
+	// 			inventoryCombinations = append(inventoryCombinations, stackCombination)
+	// 		}
+	// 	}
+	// }
 
 	return inventoryCombinations
 }
