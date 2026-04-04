@@ -207,7 +207,12 @@ func getDuplicateWeight(total, split, max uint16, c cache) *big.Rat {
 	result := new(big.Rat)
 	for i := uint16(0); i <= limit; i++ {
 		term := big.NewRat(1, int64(factorial(int(i), c)))
-		term.Mul(term, getDuplicateWeight(total-i*max, split-i, max-1, c))
+		if split >= i && total >= (i*max) {
+			term = term.Mul(term, getDuplicateWeight(total-i*max, split-i, max-1, c))
+		} else {
+			term = big.NewRat(0, 1)
+		}
+
 		result.Add(result, term)
 	}
 	c.duplicateWeights[key] = new(big.Rat).Set(result)
