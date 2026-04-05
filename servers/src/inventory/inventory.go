@@ -610,7 +610,6 @@ func (i Inventory) GetIndex() *big.Rat {
 	}
 
 	workingInventory := deblankedFullInventory.Copy()
-	prefixExactWeight := big.NewRat(1, 1)
 
 	for itemIndex, extra := range splits {
 		item := deblankedInventory.Items[itemIndex]
@@ -675,13 +674,10 @@ func (i Inventory) GetIndex() *big.Rat {
 			}
 
 			permCount := new(big.Rat).Set(rawPermCount)
-			permCount.Mul(permCount, prefixExactWeight)
 			permCount.Mul(permCount, weight)
 			permCount.Mul(permCount, suffix)
 
 			if matchesActual {
-				prefixExactWeight = new(big.Rat).Mul(prefixExactWeight, weight)
-
 				// remove the chosen stacks for this item from workingInventory
 				for _, factor := range factorIndexes {
 					factorCount := factorization[factor]

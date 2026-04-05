@@ -105,6 +105,7 @@ func StartEncoder() {
 			},
 		},
 	}
+	currentInventory.NewCache()
 
 	message := "Lily"
 
@@ -118,15 +119,18 @@ func StartEncoder() {
 		w.Header().Set("Content-Type", "application/json")
 		numberMessage := TextToNumber(message)
 		variation := currentInventory.GetVariation(numberMessage)
+		fmt.Println("Message:", numberMessage, message)
 		json.NewEncoder(w).Encode(variation)
 	})
 
 	mux.HandleFunc("POST /setInventory", func(w http.ResponseWriter, r *http.Request) {
 		inventory := Inventory{}
+		inventory.Cache = currentInventory.Cache
 		json.NewDecoder(r.Body).Decode(&inventory)
 		currentInventory = inventory
 		count := totalInventoryBits(currentInventory)
-		fmt.Printf("New inventory combinations: %d\n bits", count)
+		currentInventory.Print()
+		fmt.Printf("New inventory combinations: %d bits\n", count)
 		json.NewEncoder(w).Encode(Message{Message: "ok"})
 	})
 

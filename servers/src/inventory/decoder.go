@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"encoding/xml"
+	"fmt"
 	"math/big"
 	"os"
 	"slices"
@@ -45,7 +46,7 @@ type xmlRoot struct {
 	Items []xmlItem `xml:"items>Item"`
 }
 
-func GetCurrentInventory(savePath string) (Inventory, error) {
+func GetCurrentInventory(savePath string, c cache) (Inventory, error) {
 	data, err := os.ReadFile(savePath)
 	if err != nil {
 		return Inventory{}, err
@@ -58,6 +59,7 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 	}
 
 	inventory := Inventory{}
+	inventory.Cache = c
 	for _, item := range root.Items {
 		if item.Name == nil || item.Stack == nil {
 			inventory.Items = append(inventory.Items, Item{
@@ -78,16 +80,20 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 func StartDecoder() {
 	println("Decoder Started!")
 	const path = "/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"
-	inventory, _ := GetCurrentInventory(path)
+	cacheInventory := Inventory{}
+	cacheInventory.NewCache()
+	cache := cacheInventory.Cache
+	inventory, _ := GetCurrentInventory(path, cache)
 	for {
 		time.Sleep(time.Second)
-		newInventory, _ := GetCurrentInventory(path)
+		newInventory, _ := GetCurrentInventory(path, cache)
 		if slices.Equal(newInventory.Items, inventory.Items) {
 			continue
 		}
 		inventory = newInventory
+		inventory.Print()
 		msgNumber := inventory.GetIndex()
 		msg := NumberToText(msgNumber)
-		println(msgNumber, msg)
+		fmt.Println("Message:", msgNumber, msg)
 	}
 }
