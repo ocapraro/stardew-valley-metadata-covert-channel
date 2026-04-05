@@ -13,7 +13,7 @@ type cache struct {
 	smallFactorial    map[int]int
 	duplicateWeights  map[[3]uint16]*big.Rat
 	partitionCounts   map[[2]uint8]uint64
-	sumFactorizations map[uint8][][]uint8
+	sumFactorizations map[[2]uint16][]map[uint16]uint16
 	perms             map[[2]uint8][][]uint8
 }
 
@@ -36,7 +36,7 @@ func (i *Inventory) NewCache() {
 		smallFactorial:    make(map[int]int),
 		duplicateWeights:  make(map[[3]uint16]*big.Rat),
 		partitionCounts:   make(map[[2]uint8]uint64),
-		sumFactorizations: make(map[uint8][][]uint8),
+		sumFactorizations: make(map[[2]uint16][]map[uint16]uint16),
 		perms:             make(map[[2]uint8][][]uint8),
 	}
 }
@@ -166,25 +166,50 @@ func partitionCounts(x uint8, y uint8, c cache) uint64 {
 }
 
 // sumFactorization returns a list of all possible numbers that can sum up to x
-func sumFactorization(x uint8, c cache) [][]uint8 {
-	if cached, ok := c.sumFactorizations[x]; ok {
-		out := make([][]uint8, len(cached))
-		copy(out, cached)
+func sumFactorization(x, length uint16, c cache) []map[uint16]uint16 {
+	key := [2]uint16{x, length}
+	if cached, ok := c.sumFactorizations[key]; ok {
+		out := make([]map[uint16]uint16, len(cached))
+		for index, factorization := range cached {
+			out[index] = maps.Clone(factorization)
+		}
 		return out
 	}
-	result := [][]uint8{{x}}
-	for i := uint8(1); i < x; i++ {
-		for _, subResult := range sumFactorization(x-i, c) {
-			if slices.Min(subResult) >= i {
-				result = append(result, append([]uint8{i}, subResult...))
+
+	if length == 0 {
+		if x == 0 {
+			return []map[uint16]uint16{{}}
+		}
+		return nil
+	}
+	if x < length {
+		return nil
+	}
+	if length == 1 {
+		result := []map[uint16]uint16{{x: 1}}
+		c.sumFactorizations[key] = []map[uint16]uint16{maps.Clone(result[0])}
+		return result
+	}
+
+	result := []map[uint16]uint16{}
+	for i := uint16(1); i <= x; i++ {
+		if x-i < length-1 {
+			break
+		}
+		factors := sumFactorization(x-i, length-1, c)
+		for _, factor := range factors {
+			if len(factor) > 0 && slices.Min(slices.Collect(maps.Keys(factor))) < i {
+				continue
 			}
+			next := maps.Clone(factor)
+			next[i]++
+			result = append(result, next)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return len(result[i]) < len(result[j])
-	})
-	c.sumFactorizations[x] = make([][]uint8, len(result))
-	copy(c.sumFactorizations[x], result)
+	c.sumFactorizations[key] = make([]map[uint16]uint16, len(result))
+	for index, factorization := range result {
+		c.sumFactorizations[key][index] = maps.Clone(factorization)
+	}
 	return result
 }
 
@@ -220,8 +245,10 @@ func getDuplicateWeight(total, split, max uint16, c cache) *big.Rat {
 }
 
 // waysForStackCount calculates the number of ways an item can be stacked
+// @param stop: number of stacks to stop at
 func (item Item) waysForStackCount(stop uint8, c cache) map[uint8]*big.Rat {
 	stackCounts := make(map[uint8]*big.Rat)
+	stackCounts[0] = big.NewRat(1, 1)
 	for i := uint8(1); uint16(i) <= item.Stack && i <= stop; i++ {
 		stackCounts[i-1] = getDuplicateWeight(item.Stack, uint16(i), item.Stack, c)
 	}
@@ -242,6 +269,7 @@ func nCr(n, r uint64) uint64 {
 	return res
 }
 
+// TODO: Cache this
 func factorialBig(n int64) *big.Int {
 	result := big.NewInt(1)
 	for i := int64(2); i <= n; i++ {
@@ -277,6 +305,27 @@ func combineSpreads(s1, s2 map[uint8]*big.Rat, blankCount uint8) map[uint8]*big.
 	return combinedSpreads
 }
 
+// TODO: Cache This
+// getWeights gets the combined weights of all items in the inventory, starting at `startingFrom`
+func (i Inventory) getWeights(blankCount, startingFrom uint8) map[uint8]*big.Rat {
+	combinedSpreads := map[uint8]*big.Rat{
+		0: big.NewRat(1, 1),
+	}
+
+	for index, item := range i.Items {
+		if index < int(startingFrom) {
+			continue
+		}
+		if item.Stack > 1 {
+			spread := item.waysForStackCount(blankCount+1, i.Cache)
+			combinedSpreads = combineSpreads(combinedSpreads, spread, blankCount)
+		}
+	}
+
+	return combinedSpreads
+}
+
+// TODO: Cache This
 // calculateSpreadPermutationCounts calculates the number of possible inventory perms for each number of blanks
 func (i Inventory) CalculateSpreadPermutationCounts() map[uint8]*big.Rat {
 	deblankedInventory := i.Copy()
@@ -288,16 +337,7 @@ func (i Inventory) CalculateSpreadPermutationCounts() map[uint8]*big.Rat {
 
 	result := map[uint8]*big.Rat{}
 
-	combinedSpreads := map[uint8]*big.Rat{
-		0: big.NewRat(1, 1),
-	}
-
-	for _, item := range deblankedInventory.Items {
-		if item.Stack > 1 {
-			spread := item.waysForStackCount(blankCount+1, i.Cache)
-			combinedSpreads = combineSpreads(combinedSpreads, spread, blankCount)
-		}
-	}
+	combinedSpreads := deblankedInventory.getWeights(blankCount, 0)
 
 	for extra := uint8(0); extra <= blankCount; extra++ {
 		if combinedSpreads[extra] == nil {
@@ -312,6 +352,133 @@ func (i Inventory) CalculateSpreadPermutationCounts() map[uint8]*big.Rat {
 
 	return result
 }
+
+// GetVariation gets the variation of a collapsed inventory at a given index
+func (i Inventory) GetVariation(target *big.Rat) Inventory {
+	println("Getting variation")
+	spreadPermutationCounts := i.CalculateSpreadPermutationCounts()
+	println("Counts gotten")
+
+	deblankedInventory := i.Copy()
+	deblankedInventory.collapse()
+	deblankedInventory.removeBlanks()
+	deblankedInventory.Sort()
+	blankCount := uint8(len(i.Items) - len(deblankedInventory.Items))
+
+	count := new(big.Rat)
+	blanks := slices.Collect(maps.Keys(spreadPermutationCounts))
+	slices.Sort(blanks)
+	targetBlankCount := uint8(0)
+
+	for _, blank := range blanks {
+		count = count.Add(count, spreadPermutationCounts[blank])
+		if target.Cmp(count) < 1 {
+			targetBlankCount = blank
+			count = count.Sub(count, spreadPermutationCounts[blank])
+			break
+		}
+	}
+	targetFillCount := blankCount - targetBlankCount
+
+	// Bucket 2
+	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
+	blankCountFactorial := factorialBig(int64(targetBlankCount))
+	rawPermCount := new(big.Rat).SetFrac(inventoryLengthFactorial, blankCountFactorial)
+	targetSplits := []uint8{}
+	for itemIndex, item := range deblankedInventory.Items {
+		weights := map[uint8]*big.Rat{0: big.NewRat(1, 1)}
+		if item.Stack > 1 {
+			weights = item.waysForStackCount(targetFillCount+1, i.Cache)
+		}
+		weightSplits := slices.Collect(maps.Keys(weights))
+		slices.Sort(weightSplits)
+		slices.Reverse(weightSplits)
+		for _, split := range weightSplits {
+			if split > targetFillCount {
+				continue
+			}
+			weight := weights[split]
+			suffixWeight := deblankedInventory.getWeights(targetFillCount-split, uint8(itemIndex)+1)
+			suffix := suffixWeight[targetFillCount-split]
+			if suffix == nil {
+				suffix = big.NewRat(0, 1)
+			}
+			permCount := new(big.Rat).Set(rawPermCount)
+			permCount = permCount.Mul(permCount, weight)
+			permCount = permCount.Mul(permCount, suffix)
+			count = count.Add(count, permCount)
+			if target.Cmp(count) < 1 {
+				targetSplits = append(targetSplits, split)
+				count = count.Sub(count, permCount)
+				targetFillCount -= split
+				break
+			}
+		}
+	}
+
+	// Bucket 3
+	exactSuffixes := make([]*big.Rat, len(deblankedInventory.Items)+1)
+	exactSuffixes[len(deblankedInventory.Items)] = big.NewRat(1, 1)
+	for itemIndex := len(deblankedInventory.Items) - 1; itemIndex >= 0; itemIndex-- {
+		parts := targetSplits[itemIndex] + 1
+		itemContribution := big.NewRat(1, 1)
+		if parts > 1 {
+			itemStack := deblankedInventory.Items[itemIndex].Stack
+			itemContribution = getDuplicateWeight(itemStack, uint16(parts), itemStack, i.Cache)
+		}
+		exactSuffixes[itemIndex] = new(big.Rat).Set(itemContribution)
+		exactSuffixes[itemIndex] = exactSuffixes[itemIndex].Mul(exactSuffixes[itemIndex], exactSuffixes[itemIndex+1])
+	}
+	finalInventoryCombination := Inventory{}
+	targetFillCount = blankCount - targetBlankCount
+	for itemIndex, split := range targetSplits {
+		item := deblankedInventory.Items[itemIndex]
+		split++
+		if split == 1 {
+			finalInventoryCombination.Items = append(finalInventoryCombination.Items, item)
+			continue
+		}
+		suffix := exactSuffixes[itemIndex+1]
+		factorizations := sumFactorization(item.Stack, uint16(split), i.Cache)
+		for _, factorization := range factorizations {
+			factorIndexes := slices.Collect(maps.Keys(factorization))
+			slices.Sort(factorIndexes)
+			weight := big.NewRat(1, 1)
+			for _, factor := range factorIndexes {
+				factorCount := factorization[factor]
+				if factorCount > 1 {
+					factorCountFactorial := factorialBig(int64(factorCount))
+					weight.Denom().Mul(weight.Denom(), factorCountFactorial)
+				}
+			}
+			permCount := new(big.Rat).Set(rawPermCount)
+			permCount = permCount.Mul(permCount, weight)
+			permCount = permCount.Mul(permCount, suffix)
+			count = count.Add(count, permCount)
+			if target.Cmp(count) < 1 {
+				for _, factor := range factorIndexes {
+					factorCount := factorization[factor]
+					newItem := Item{
+						Name:  item.Name,
+						Stack: factor,
+					}
+					for range factorCount {
+						finalInventoryCombination.Items = append(finalInventoryCombination.Items, newItem)
+					}
+				}
+				count = count.Sub(count, permCount)
+				targetFillCount -= split
+				break
+			}
+		}
+	}
+	finalInventoryCombination.addBlanks(len(i.Items))
+
+	finalInventory := Inventory{}
+	return finalInventory
+}
+
+// =========== OLD CODE ===================
 
 type bounds struct {
 	Upper big.Int
@@ -441,8 +608,8 @@ func (i Inventory) getCounts() map[string]uint64 {
 	return invetoryCounts
 }
 
-// GetVariation gets the variation of a collapsed inventory at a given index
-func (i Inventory) GetVariation(target uint64) Inventory {
+// GetVariationOLD gets the variation of a collapsed inventory at a given index
+func (i Inventory) GetVariationOLD(target uint64) Inventory {
 	println("Getting variation")
 	inventoryCounts := i.getCounts()
 	println("Counts gotten")

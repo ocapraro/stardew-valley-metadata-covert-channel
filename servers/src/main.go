@@ -66,123 +66,27 @@ func main() {
 		Items: []inventory.Item{
 			{
 				Name:  "Parsnip Seeds",
+				Stack: 15,
+			},
+			{
+				Name:  "Potato",
 				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Melon Seeds",
+				Stack: 40,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Hoe",
+				Stack: 1,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Pickaxe",
+				Stack: 1,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Axe",
+				Stack: 1,
 			},
 			{
 				Name:  "Blank",
@@ -214,7 +118,9 @@ func main() {
 	currentInventory.NewCache()
 
 	fmt.Println("Starting...")
-	fillInventoryAndPrintBits(&currentInventory)
+	// fillInventoryAndPrintBits(&currentInventory)
+	fmt.Println(currentInventory.CalculateSpreadPermutationCounts())
+	currentInventory.GetVariation(big.NewRat(12412652896607039, 1))
 
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)

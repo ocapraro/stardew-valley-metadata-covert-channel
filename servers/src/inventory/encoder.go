@@ -87,7 +87,7 @@ func StartEncoder() {
 	mux.HandleFunc("GET /encode", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		numberMessage := TextToNumber(message)
-		variation := currentInventory.GetVariation(numberMessage)
+		variation := currentInventory.GetVariationOLD(numberMessage)
 		json.NewEncoder(w).Encode(variation)
 	})
 
