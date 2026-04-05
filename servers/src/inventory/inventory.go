@@ -363,19 +363,34 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 	deblankedInventory.Sort()
 	blankCount := uint8(len(i.Items) - len(deblankedInventory.Items))
 
-	count := new(big.Rat)
+	// Convert to 0-based residual rank and consume branch sizes bucket-by-bucket.
+	rank := new(big.Rat).Set(target)
+	rank.Sub(rank, big.NewRat(1, 1))
+	if rank.Sign() < 0 {
+		rank = big.NewRat(0, 1)
+	}
+
 	blanks := slices.Collect(maps.Keys(spreadPermutationCounts))
 	slices.Sort(blanks)
 	targetBlankCount := uint8(0)
 
 	// Bucket 1
+	selectedBlankCount := false
 	for _, blank := range blanks {
-		count = count.Add(count, spreadPermutationCounts[blank])
-		if target.Cmp(count) < 1 {
+		branchCount := spreadPermutationCounts[blank]
+		if branchCount == nil {
+			continue
+		}
+
+		if rank.Cmp(branchCount) < 0 {
 			targetBlankCount = blank
-			count = count.Sub(count, spreadPermutationCounts[blank])
+			selectedBlankCount = true
 			break
 		}
+		rank.Sub(rank, branchCount)
+	}
+	if !selectedBlankCount {
+		panic("bucket 1 failed to select blank count")
 	}
 	targetFillCount := blankCount - targetBlankCount
 
@@ -409,20 +424,19 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 				suffix = big.NewRat(0, 1)
 			}
 
-			permCount := new(big.Rat).Set(rawPermCount)
-			permCount.Mul(permCount, prefixWeight)
-			permCount.Mul(permCount, weight)
-			permCount.Mul(permCount, suffix)
+			branchCount := new(big.Rat).Set(rawPermCount)
+			branchCount.Mul(branchCount, prefixWeight)
+			branchCount.Mul(branchCount, weight)
+			branchCount.Mul(branchCount, suffix)
 
-			count = count.Add(count, permCount)
-			if target.Cmp(count) < 1 {
+			if rank.Cmp(branchCount) < 0 {
 				targetSplits = append(targetSplits, split)
-				count = count.Sub(count, permCount)
 				targetFillCount -= split
 				prefixWeight = new(big.Rat).Mul(prefixWeight, weight)
 				chosen = true
 				break
 			}
+			rank.Sub(rank, branchCount)
 		}
 		if !chosen {
 			panic(fmt.Sprintf("bucket 2 failed at item %d (%s)", itemIndex, item.Name))
@@ -444,11 +458,14 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 	}
 	finalInventoryCombination := Inventory{}
 	targetFillCount = blankCount - targetBlankCount
+	exactPrefix := big.NewRat(1, 1)
 	for itemIndex, split := range targetSplits {
+		chosen := false
 		item := deblankedInventory.Items[itemIndex]
 		split++
 		if split == 1 {
 			finalInventoryCombination.Items = append(finalInventoryCombination.Items, item)
+			chosen = true
 			continue
 		}
 		suffix := exactSuffixes[itemIndex+1]
@@ -464,11 +481,11 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 					weight.Denom().Mul(weight.Denom(), factorCountFactorial)
 				}
 			}
-			permCount := new(big.Rat).Set(rawPermCount)
-			permCount = permCount.Mul(permCount, weight)
-			permCount = permCount.Mul(permCount, suffix)
-			count = count.Add(count, permCount)
-			if target.Cmp(count) < 1 {
+			branchCount := new(big.Rat).Set(rawPermCount)
+			branchCount = branchCount.Mul(branchCount, exactPrefix)
+			branchCount = branchCount.Mul(branchCount, weight)
+			branchCount = branchCount.Mul(branchCount, suffix)
+			if rank.Cmp(branchCount) < 0 {
 				for _, factor := range factorIndexes {
 					factorCount := factorization[factor]
 					newItem := Item{
@@ -479,10 +496,15 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 						finalInventoryCombination.Items = append(finalInventoryCombination.Items, newItem)
 					}
 				}
-				count = count.Sub(count, permCount)
 				targetFillCount -= split
+				exactPrefix = new(big.Rat).Mul(exactPrefix, weight)
+				chosen = true
 				break
 			}
+			rank.Sub(rank, branchCount)
+		}
+		if !chosen {
+			panic(fmt.Sprintf("bucket 3 failed at item %d (%s)", itemIndex, item.Name))
 		}
 	}
 	finalInventoryCombination.addBlanks(len(i.Items))
@@ -492,6 +514,7 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 	finalInventory := Inventory{}
 
 	for len(finalInventoryCombination.Items) > 0 {
+		chosen := false
 		checkedItems := Inventory{}
 		for index, item := range finalInventoryCombination.Items {
 			if checkedItems.Contains(item) {
@@ -500,15 +523,18 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 			checkedItems.Items = append(checkedItems.Items, item)
 			checkingInventory := finalInventoryCombination.Copy()
 			checkingInventory.Items = slices.Delete(checkingInventory.Items, index, index+1)
-			permCount := checkingInventory.getPermutationCount()
-			count = count.Add(count, permCount)
+			branchCount := checkingInventory.getPermutationCount()
 
-			if target.Cmp(count) < 1 {
+			if rank.Cmp(branchCount) < 0 {
 				finalInventoryCombination.Items = slices.Delete(finalInventoryCombination.Items, index, index+1)
 				finalInventory.Items = append(finalInventory.Items, item)
-				count = count.Sub(count, permCount)
+				chosen = true
 				break
 			}
+			rank.Sub(rank, branchCount)
+		}
+		if !chosen {
+			panic("bucket 4 failed to select next item")
 		}
 	}
 
@@ -530,7 +556,15 @@ func (i Inventory) GetIndex() *big.Rat {
 	// Bucket 1
 	index := new(big.Rat)
 	inventoryCounts := i.CalculateSpreadPermutationCounts()
-	for blanks := range blankCount {
+	blankKeys := slices.Collect(maps.Keys(inventoryCounts))
+	slices.Sort(blankKeys)
+	for _, blanks := range blankKeys {
+		if blanks >= blankCount {
+			break
+		}
+		if inventoryCounts[blanks] == nil {
+			continue
+		}
 		index.Add(index, inventoryCounts[blanks])
 	}
 
@@ -610,6 +644,7 @@ func (i Inventory) GetIndex() *big.Rat {
 	}
 
 	workingInventory := deblankedFullInventory.Copy()
+	exactPrefix := big.NewRat(1, 1)
 
 	for itemIndex, extra := range splits {
 		item := deblankedInventory.Items[itemIndex]
@@ -674,10 +709,12 @@ func (i Inventory) GetIndex() *big.Rat {
 			}
 
 			permCount := new(big.Rat).Set(rawPermCount)
+			permCount.Mul(permCount, exactPrefix)
 			permCount.Mul(permCount, weight)
 			permCount.Mul(permCount, suffix)
 
 			if matchesActual {
+				exactPrefix = new(big.Rat).Mul(exactPrefix, weight)
 				// remove the chosen stacks for this item from workingInventory
 				for _, factor := range factorIndexes {
 					factorCount := factorization[factor]

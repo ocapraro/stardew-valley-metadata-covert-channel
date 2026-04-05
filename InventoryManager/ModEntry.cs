@@ -24,10 +24,29 @@ public class Response
 public class ModEntry : Mod
 {
   private static readonly HttpClient HttpClient = new();
+  private List<Item?>? inventoryBeforeSleep;
+  private bool shouldRestoreInventoryOnWake;
+
   public override void Entry(IModHelper helper)
   {
     Monitor.Log("Mod loaded!", LogLevel.Info);
     helper.Events.Display.MenuChanged += OnMenuChanged;
+    helper.Events.GameLoop.DayStarted += OnDayStarted;
+  }
+
+  private static List<Item?> CloneInventory(IList<Item?> sourceInventory)
+  {
+    return sourceInventory
+      .Select(item =>
+      {
+        if (item is null)
+          return null;
+
+        var clonedItem = item.getOne();
+        clonedItem.Stack = item.Stack;
+        return clonedItem;
+      })
+      .ToList();
   }
 
   /// <summary>
@@ -74,6 +93,7 @@ public class ModEntry : Mod
   {
     Monitor.Log("Player sleeping", LogLevel.Info);
     var playerInventory = Game1.player.Items;
+    var preModInventorySnapshot = CloneInventory(playerInventory);
 
     var requestInventory = new Response
     {
@@ -173,7 +193,27 @@ public class ModEntry : Mod
         playerInventory.Add(null);
       }
     }
+
+    inventoryBeforeSleep = preModInventorySnapshot;
+    shouldRestoreInventoryOnWake = true;
     // Monitor.Log(res., LogLevel.Info);
+  }
+
+  private void OnDayStarted(object? sender, DayStartedEventArgs e)
+  {
+    if (!shouldRestoreInventoryOnWake || inventoryBeforeSleep is null || !Context.IsWorldReady)
+      return;
+
+    var playerInventory = Game1.player.Items;
+    var restoreSnapshot = CloneInventory(inventoryBeforeSleep);
+
+    playerInventory.Clear();
+    foreach (var item in restoreSnapshot)
+      playerInventory.Add(item);
+
+    shouldRestoreInventoryOnWake = false;
+    inventoryBeforeSleep = null;
+    Monitor.Log("Restored original pre-sleep inventory after wake up.", LogLevel.Info);
   }
 
   private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
