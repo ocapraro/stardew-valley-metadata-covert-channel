@@ -5,6 +5,7 @@ using StardewValley.Menus;
 using StardewValley.Objects;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace InventoryManager;
 
@@ -12,6 +13,7 @@ namespace InventoryManager;
 public class ResponseItem
 {
   public string? Name { get; set; }
+  public string? QualifiedItemId { get; set; }
   public int Stack { get; set; }
 }
 
@@ -68,7 +70,7 @@ public class ModEntry : Mod
       return true;  
   }
 
-  private async void HandleSleep()
+  private async Task HandleSleep()
   {
     Monitor.Log("Player sleeping", LogLevel.Info);
     var playerInventory = Game1.player.Items;
@@ -77,8 +79,8 @@ public class ModEntry : Mod
     {
       Items = playerInventory.Select(item =>
         item is null
-          ? new ResponseItem { Name = "Blank", Stack = 0 }
-          : new ResponseItem { Name = item.DisplayName, Stack = item.Stack }
+          ? new ResponseItem { Name = "Blank", QualifiedItemId = null, Stack = 0 }
+          : new ResponseItem { Name = item.DisplayName, QualifiedItemId = item.QualifiedItemId, Stack = item.Stack }
       ).ToList()
     };
 
@@ -100,8 +102,14 @@ public class ModEntry : Mod
     var result = JsonSerializer.Deserialize<Response>(json);
     if (result?.Items is null)
       return;
-    // Record all current items
-    var originalItems = new List<Item>(playerInventory);
+    // Record all current items and consume matches as they are used so duplicate names
+    // retain stable identity instead of repeatedly cloning the first matching slot.
+    var sourceItems = playerInventory
+      .Where(item => item is not null)
+      .Cast<Item>()
+      .ToList();
+
+    var originalItems = new List<Item>(sourceItems);
     // Clear the hotbar
     playerInventory.Clear();
     
@@ -117,8 +125,39 @@ public class ModEntry : Mod
         continue;
       }
       
-      // Find the original item by name
-      var originalItem = originalItems.FirstOrDefault(item => item is not null && item.DisplayName == responseItem.Name);
+      Item? originalItem = null;
+
+      if (!string.IsNullOrEmpty(responseItem.QualifiedItemId))
+      {
+        var idMatchIndex = originalItems.FindIndex(item => item.QualifiedItemId == responseItem.QualifiedItemId);
+        if (idMatchIndex >= 0)
+        {
+          originalItem = originalItems[idMatchIndex];
+          originalItems.RemoveAt(idMatchIndex);
+        }
+      }
+
+      if (originalItem is null)
+      {
+        var nameMatchIndex = originalItems.FindIndex(item => item.DisplayName == responseItem.Name);
+        if (nameMatchIndex >= 0)
+        {
+          originalItem = originalItems[nameMatchIndex];
+          originalItems.RemoveAt(nameMatchIndex);
+        }
+      }
+
+      // If encoded output split one stack into more stacks than existed originally,
+      // clone from any source template of that item name/ID instead of writing blank.
+      if (originalItem is null && !string.IsNullOrEmpty(responseItem.QualifiedItemId))
+      {
+        originalItem = sourceItems.FirstOrDefault(item => item.QualifiedItemId == responseItem.QualifiedItemId);
+      }
+
+      if (originalItem is null)
+      {
+        originalItem = sourceItems.FirstOrDefault(item => item.DisplayName == responseItem.Name);
+      }
       
       if (originalItem is not null)
       {
@@ -142,8 +181,7 @@ public class ModEntry : Mod
     Monitor.Log("Menu Opened", LogLevel.Info);
     if(IsSleeping(e))
     {
-      var playerInventory = Game1.player.Items;
-      HandleSleep();
+      HandleSleep().GetAwaiter().GetResult();
       // Monitor.Log($"Inventory slots: {playerInventory.Count}", LogLevel.Info);
       // for (var slot = 0; slot < playerInventory.Count; slot++)
       // {

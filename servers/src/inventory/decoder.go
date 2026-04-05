@@ -3,34 +3,50 @@ package inventory
 import (
 	"encoding/xml"
 	"fmt"
+	"math/big"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 )
 
 // NumberToText changes a binary into its string equivilent
-func NumberToText(number uint64) string {
-	binaryString := fmt.Sprintf("%064b", number)
+func NumberToText(number *big.Rat) string {
+	if number == nil || number.Sign() == 0 {
+		return ""
+	}
+
+	integerPart := new(big.Int).Quo(number.Num(), number.Denom())
+	binaryString := integerPart.Text(2)
+	if rem := len(binaryString) % 8; rem != 0 {
+		binaryString = strings.Repeat("0", 8-rem) + binaryString
+	}
+
 	var message strings.Builder
 	for i := 0; i < len(binaryString); i += 8 {
-		charCode, _ := strconv.ParseUint(binaryString[i:i+8], 2, 8)
-		message.WriteRune(rune(charCode))
+		charBits := binaryString[i : i+8]
+		charValue := uint8(0)
+		for _, bit := range charBits {
+			charValue <<= 1
+			if bit == '1' {
+				charValue |= 1
+			}
+		}
+		message.WriteByte(charValue)
 	}
 	return message.String()
 }
 
 type xmlItem struct {
 	Name  *string `xml:"name"`
-	Stack *uint8  `xml:"stack"`
+	Stack *uint16 `xml:"stack"`
 }
 
 type xmlRoot struct {
 	Items []xmlItem `xml:"items>Item"`
 }
 
-func GetCurrentInventory(savePath string) (Inventory, error) {
+func GetCurrentInventory(savePath string, c cache) (Inventory, error) {
 	data, err := os.ReadFile(savePath)
 	if err != nil {
 		return Inventory{}, err
@@ -43,6 +59,7 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 	}
 
 	inventory := Inventory{}
+	inventory.Cache = c
 	for _, item := range root.Items {
 		if item.Name == nil || item.Stack == nil {
 			inventory.Items = append(inventory.Items, Item{
@@ -62,17 +79,23 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 
 func StartDecoder() {
 	println("Decoder Started!")
-	const path = "/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"
-	inventory, _ := GetCurrentInventory(path)
+	path, ok := os.LookupEnv("SAVE_PATH")
+	if !ok || strings.TrimSpace(path) == "" {
+		panic("SAVE_PATH environment variable is not set")
+	}
+	inventory := Inventory{}
+	inventory.NewCache()
+	cache := inventory.Cache
 	for {
 		time.Sleep(time.Second)
-		newInventory, _ := GetCurrentInventory(path)
+		newInventory, _ := GetCurrentInventory(path, cache)
 		if slices.Equal(newInventory.Items, inventory.Items) {
 			continue
 		}
 		inventory = newInventory
+		inventory.Print()
 		msgNumber := inventory.GetIndex()
 		msg := NumberToText(msgNumber)
-		println(msgNumber, msg)
+		fmt.Println("Message:", msgNumber, msg)
 	}
 }

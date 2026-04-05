@@ -3,19 +3,49 @@ package inventory
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
 // TextToNumber changes a string into its binary equivilent
-func TextToNumber(message string) uint64 {
+func TextToNumber(message string) *big.Rat {
 	var binaryString strings.Builder
 	for _, char := range message {
 		fmt.Fprintf(&binaryString, "%08b", char)
 	}
-	binaryMessage, _ := strconv.ParseUint(binaryString.String(), 2, 64)
-	return binaryMessage
+	binaryMessage := new(big.Int)
+	if binaryString.Len() == 0 {
+		return new(big.Rat)
+	}
+	binaryMessage.SetString(binaryString.String(), 2)
+	return new(big.Rat).SetInt(binaryMessage)
+}
+
+func totalInventoryBits(current Inventory) int {
+	permCounts := current.CalculateSpreadPermutationCounts()
+	total := new(big.Rat)
+	for _, permCount := range permCounts {
+		total.Add(total, permCount)
+	}
+	if total.Sign() <= 0 {
+		return 0
+	}
+	if total.IsInt() {
+		count := new(big.Int).Set(total.Num())
+		if count.Cmp(big.NewInt(1)) <= 0 {
+			return 0
+		}
+		count.Sub(count, big.NewInt(1))
+		return count.BitLen()
+	}
+
+	f, _ := total.Float64()
+	if f <= 1 {
+		return 0
+	}
+	return int(math.Ceil(math.Log2(f)))
 }
 
 type Message struct {
@@ -75,6 +105,7 @@ func StartEncoder() {
 			},
 		},
 	}
+	currentInventory.NewCache()
 
 	message := "Lily"
 
@@ -88,18 +119,18 @@ func StartEncoder() {
 		w.Header().Set("Content-Type", "application/json")
 		numberMessage := TextToNumber(message)
 		variation := currentInventory.GetVariation(numberMessage)
+		fmt.Println("Message:", numberMessage, message)
 		json.NewEncoder(w).Encode(variation)
 	})
 
 	mux.HandleFunc("POST /setInventory", func(w http.ResponseWriter, r *http.Request) {
 		inventory := Inventory{}
+		inventory.Cache = currentInventory.Cache
 		json.NewDecoder(r.Body).Decode(&inventory)
 		currentInventory = inventory
-		count := 0
-		for _, permCount := range inventory.getCounts() {
-			count += int(permCount)
-		}
-		fmt.Printf("New inventory combinations: %d\n", count)
+		count := totalInventoryBits(currentInventory)
+		currentInventory.Print()
+		fmt.Printf("New inventory combinations: %d bits\n", count)
 		json.NewEncoder(w).Encode(Message{Message: "ok"})
 	})
 
