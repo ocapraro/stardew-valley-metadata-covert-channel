@@ -120,8 +120,11 @@ func main() {
 	fmt.Println("Starting...")
 	// fillInventoryAndPrintBits(&currentInventory)
 	fmt.Println(currentInventory.CalculateSpreadPermutationCounts())
-	variation := currentInventory.GetVariation(big.NewRat(14521133213737920, 1))
+	variation := currentInventory.GetVariation(big.NewRat(100000, 1))
 	variation.Print()
+	variation.NewCache()
+	fmt.Println("Generating Index")
+	fmt.Println(variation.GetIndex())
 
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)

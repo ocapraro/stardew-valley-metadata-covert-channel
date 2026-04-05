@@ -542,18 +542,22 @@ func (i Inventory) GetIndex() *big.Rat {
 				splits[itemIndex]++
 			}
 		}
-	}
-	for splitIndex := range splits {
-		splits[splitIndex]--
+		// convert "number of stacks used" into "extra"
+		if splits[itemIndex] > 0 {
+			splits[itemIndex]--
+		}
 	}
 
-	splitsFound := 0
 	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
 	blankCountFactorial := factorialBig(int64(blankCount))
 	rawPermCount := new(big.Rat).SetFrac(inventoryLengthFactorial, blankCountFactorial)
+
 	prefixWeight := big.NewRat(1, 1)
 	targetFillCount := fillCount
+
 	for itemIndex, item := range deblankedInventory.Items {
+		actualSplit := splits[itemIndex]
+
 		weights := map[uint8]*big.Rat{0: big.NewRat(1, 1)}
 		if item.Stack > 1 {
 			weights = item.waysForStackCount(targetFillCount+1, i.Cache)
@@ -569,22 +573,26 @@ func (i Inventory) GetIndex() *big.Rat {
 			}
 
 			weight := weights[split]
+
 			suffixWeight := deblankedInventory.getWeights(targetFillCount-split, uint8(itemIndex)+1)
 			suffix := suffixWeight[targetFillCount-split]
 			if suffix == nil {
 				suffix = big.NewRat(0, 1)
 			}
 
-			if splits[splitsFound] == split {
-				permCount := new(big.Rat).Set(rawPermCount)
-				permCount.Mul(permCount, prefixWeight)
-				permCount.Mul(permCount, weight)
-				permCount.Mul(permCount, suffix)
+			permCount := new(big.Rat).Set(rawPermCount)
+			permCount.Mul(permCount, prefixWeight)
+			permCount.Mul(permCount, weight)
+			permCount.Mul(permCount, suffix)
 
-				index.Add(index, permCount)
+			if split == actualSplit {
 				prefixWeight = new(big.Rat).Mul(prefixWeight, weight)
-				splitsFound++
+				targetFillCount -= split
+				break
 			}
+
+			// Earlier branch: add it to the rank.
+			index.Add(index, permCount)
 		}
 	}
 
@@ -598,58 +606,136 @@ func (i Inventory) GetIndex() *big.Rat {
 			itemStack := deblankedInventory.Items[itemIndex].Stack
 			itemContribution = getDuplicateWeight(itemStack, uint16(parts), itemStack, i.Cache)
 		}
-		exactSuffixes[itemIndex] = new(big.Rat).Set(itemContribution)
-		exactSuffixes[itemIndex] = exactSuffixes[itemIndex].Mul(exactSuffixes[itemIndex], exactSuffixes[itemIndex+1])
+		exactSuffixes[itemIndex] = new(big.Rat).Mul(itemContribution, exactSuffixes[itemIndex+1])
 	}
 
-	targetFillCount = fillCount
 	workingInventory := deblankedFullInventory.Copy()
-	for itemIndex, split := range splits {
+	prefixExactWeight := big.NewRat(1, 1)
+
+	for itemIndex, extra := range splits {
 		item := deblankedInventory.Items[itemIndex]
-		split++
-		if split == 1 {
+		parts := extra + 1
+		if parts == 1 {
 			continue
 		}
 		suffix := exactSuffixes[itemIndex+1]
-		factorizations := sumFactorization(item.Stack, uint16(split), i.Cache)
+		factorizations := sumFactorization(item.Stack, uint16(parts), i.Cache)
+
 		for _, factorization := range factorizations {
 			factorIndexes := slices.Collect(maps.Keys(factorization))
 			slices.Sort(factorIndexes)
 
-			contains := true
+			matchesActual := true
 			for _, factor := range factorIndexes {
 				factorCount := factorization[factor]
-				containsCount := uint16(0)
-				newItem := Item{
+				actualCount := uint16(0)
+
+				want := Item{
 					Name:  item.Name,
 					Stack: factor,
 				}
-				for _, workingInventoryItem := range workingInventory.Items {
-					if workingInventoryItem == newItem {
-						containsCount++
+
+				for _, invItem := range workingInventory.Items {
+					if invItem == want {
+						actualCount++
 					}
 				}
-				contains = contains && (containsCount == factorCount)
+
+				if actualCount != factorCount {
+					matchesActual = false
+					break
+				}
 			}
-			if contains {
-				weight := big.NewRat(1, 1)
+
+			if matchesActual {
+				expectedTotal := uint16(0)
+				actualTotal := uint16(0)
+
+				for _, factor := range factorIndexes {
+					expectedTotal += factorization[factor]
+				}
+				for _, invItem := range workingInventory.Items {
+					if invItem.Name == item.Name {
+						actualTotal++
+					}
+				}
+
+				if expectedTotal != actualTotal {
+					matchesActual = false
+				}
+			}
+
+			weight := big.NewRat(1, 1)
+			for _, factor := range factorIndexes {
+				factorCount := factorization[factor]
+				if factorCount > 1 {
+					factorCountFactorial := factorialBig(int64(factorCount))
+					weight.Denom().Mul(weight.Denom(), factorCountFactorial)
+				}
+			}
+
+			permCount := new(big.Rat).Set(rawPermCount)
+			permCount.Mul(permCount, prefixExactWeight)
+			permCount.Mul(permCount, weight)
+			permCount.Mul(permCount, suffix)
+
+			if matchesActual {
+				prefixExactWeight = new(big.Rat).Mul(prefixExactWeight, weight)
+
+				// remove the chosen stacks for this item from workingInventory
 				for _, factor := range factorIndexes {
 					factorCount := factorization[factor]
-					if factorCount > 1 {
-						factorCountFactorial := factorialBig(int64(factorCount))
-						weight.Denom().Mul(weight.Denom(), factorCountFactorial)
+					for removed := uint16(0); removed < factorCount; removed++ {
+						toRemove := Item{
+							Name:  item.Name,
+							Stack: factor,
+						}
+
+						for idx, invItem := range workingInventory.Items {
+							if invItem == toRemove {
+								workingInventory.Items = slices.Delete(workingInventory.Items, idx, idx+1)
+								break
+							}
+						}
 					}
 				}
-				permCount := new(big.Rat).Set(rawPermCount)
-				permCount = permCount.Mul(permCount, weight)
-				permCount = permCount.Mul(permCount, suffix)
-				index.Add(index, permCount)
 
+				break
 			}
 
+			index.Add(index, permCount)
 		}
 	}
 
+	// Bucket 4
+	inventoryCombination := i.Copy()
+	inventoryCombination.Sort()
+
+	for len(inventoryCombination.Items) > 0 {
+		itemBeingChecked := len(i.Items) - len(inventoryCombination.Items)
+		actualItem := i.Items[itemBeingChecked]
+
+		checkedItems := Inventory{}
+
+		for itemIndex, item := range inventoryCombination.Items {
+			if checkedItems.Contains(item) {
+				continue
+			}
+			checkedItems.Items = append(checkedItems.Items, item)
+
+			checkingInventory := inventoryCombination.Copy()
+			checkingInventory.Items = slices.Delete(checkingInventory.Items, itemIndex, itemIndex+1)
+			permCount := checkingInventory.getPermutationCount()
+
+			if item == actualItem {
+				inventoryCombination.Items = slices.Delete(inventoryCombination.Items, itemIndex, itemIndex+1)
+				break
+			}
+			index.Add(index, permCount)
+		}
+	}
+
+	index.Add(index, big.NewRat(1, 1))
 	return index
 }
 
