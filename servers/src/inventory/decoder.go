@@ -4,10 +4,11 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
-	"slices"
+
+	// "slices"
 	"strconv"
 	"strings"
-	"time"
+	// "time"
 )
 
 // NumberToText changes a binary into its string equivilent
@@ -62,17 +63,17 @@ func GetCurrentInventory(savePath string) (Inventory, error) {
 
 func StartDecoder() {
 	println("Decoder Started!")
-	const path = "/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"
-	inventory, _ := GetCurrentInventory(path)
-	for {
-		time.Sleep(time.Second)
-		newInventory, _ := GetCurrentInventory(path)
-		if slices.Equal(newInventory.Items, inventory.Items) {
-			continue
-		}
-		inventory = newInventory
-		msgNumber := inventory.GetIndex()
-		msg := NumberToText(msgNumber)
-		println(msgNumber, msg)
-	}
+	// const path = "/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"
+	// inventory, _ := GetCurrentInventory(path)
+	// for {
+	// 	time.Sleep(time.Second)
+	// 	newInventory, _ := GetCurrentInventory(path)
+	// 	if slices.Equal(newInventory.Items, inventory.Items) {
+	// 		continue
+	// 	}
+	// 	inventory = newInventory
+	// 	msgNumber := inventory.GetIndex()
+	// 	msg := NumberToText(msgNumber)
+	// 	println(msgNumber, msg)
+	// }
 }
