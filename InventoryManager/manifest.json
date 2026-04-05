@@ -1,0 +1,9 @@
+{
+  "Name": "Inventory Manager",
+  "Author": "ocapraro",
+  "Version": "1.0.0",
+  "Description": "Rearranges user inventory",
+  "UniqueID": "ocapraro.InventoryManager",
+  "EntryDll": "InventoryManager.dll",
+  "MinimumApiVersion": "4.0.0"
+}

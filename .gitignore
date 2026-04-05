@@ -1,0 +1,8 @@
+src/data
+__pycache__/
+.vscode/settings.json
+InventoryManager/obj/
+InventoryManager/bin/
+.DS_Store
+stardew-valley-metadata-covert-channel.sln
+.env
