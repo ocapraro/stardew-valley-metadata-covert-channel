@@ -368,6 +368,7 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 	slices.Sort(blanks)
 	targetBlankCount := uint8(0)
 
+	// Bucket 1
 	for _, blank := range blanks {
 		count = count.Add(count, spreadPermutationCounts[blank])
 		if target.Cmp(count) < 1 {
@@ -514,99 +515,145 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 	return finalInventory
 }
 
-// =========== OLD CODE ===================
-
-type bounds struct {
-	Upper big.Int
-	Lower big.Int
-}
-
-// calculateCombinations gets each way the stacks in an inventory can be split
-func (i Inventory) calculateCombinations() []Inventory {
-	println("Calculating combinations")
+func (i Inventory) GetIndex() *big.Rat {
+	deblankedFullInventory := i.Copy()
+	deblankedFullInventory.removeBlanks()
+	deblankedFullInventory.Sort()
 	deblankedInventory := i.Copy()
 	deblankedInventory.collapse()
 	deblankedInventory.removeBlanks()
 	deblankedInventory.Sort()
-	// blankCount := len(i.Items) - len(deblankedInventory.Items)
 
-	inventoryCombinations := []Inventory{
-		deblankedInventory.Copy(),
+	blankCount := uint8(len(i.Items) - len(deblankedFullInventory.Items))
+	fillCount := uint8(len(deblankedFullInventory.Items) - len(deblankedInventory.Items))
+
+	// Bucket 1
+	index := new(big.Rat)
+	inventoryCounts := i.CalculateSpreadPermutationCounts()
+	for blanks := range blankCount {
+		index.Add(index, inventoryCounts[blanks])
 	}
 
-	// var stacks []Item
-	// for _, item := range deblankedInventory.Items {
-	// 	if item.Stack < 2 {
-	// 		continue
-	// 	}
-	// 	stacks = append(stacks, item)
-	// }
+	// Bucket 2
+	splits := make([]uint8, len(deblankedInventory.Items))
+	for itemIndex, item := range deblankedInventory.Items {
+		for _, splitItem := range deblankedFullInventory.Items {
+			if splitItem.Name == item.Name {
+				splits[itemIndex]++
+			}
+		}
+	}
+	for splitIndex := range splits {
+		splits[splitIndex]--
+	}
 
-	// for blanks := 1; blanks <= blankCount; blanks++ {
-	// 	spreads := calculateSpread(uint8(blanks), uint8(len(stacks)))
-	// 	for _, spread := range spreads {
-	// 		var spreadCombinations [][][]uint16
-	// 		for stackIndex, fillsNeeded := range spread {
-	// 			stack := stacks[stackIndex]
-	// 			// Make sure the stack can actually fill the number of slots assigned to it here
-	// 			if stack.Stack <= fillsNeeded {
-	// 				continue
-	// 			}
-	// 			// Add the initial slot
-	// 			fillsNeeded++
+	splitsFound := 0
+	inventoryLengthFactorial := factorialBig(int64(len(i.Items)))
+	blankCountFactorial := factorialBig(int64(blankCount))
+	rawPermCount := new(big.Rat).SetFrac(inventoryLengthFactorial, blankCountFactorial)
+	prefixWeight := big.NewRat(1, 1)
+	targetFillCount := fillCount
+	for itemIndex, item := range deblankedInventory.Items {
+		weights := map[uint8]*big.Rat{0: big.NewRat(1, 1)}
+		if item.Stack > 1 {
+			weights = item.waysForStackCount(targetFillCount+1, i.Cache)
+		}
 
-	// 			spareItems := stack.Stack - fillsNeeded
-	// 			spareSpread := spreadSpares(spareItems, fillsNeeded)
-	// 			for row := range spareSpread {
-	// 				for s := range spareSpread[row] {
-	// 					spareSpread[row][s]++
-	// 				}
-	// 			}
-	// 			spreadCombinations = append(spreadCombinations, spareSpread)
+		weightSplits := slices.Collect(maps.Keys(weights))
+		slices.Sort(weightSplits)
+		slices.Reverse(weightSplits)
 
-	// 		}
-	// 		stackCombinations := []Inventory{{}}
-	// 		stackIndex := 0
-	// 		for len(spreadCombinations) > 0 {
-	// 			previousStackCombinations := stackCombinations
-	// 			stackCombinations = []Inventory{}
+		for _, split := range weightSplits {
+			if split > targetFillCount {
+				continue
+			}
 
-	// 			spreads := spreadCombinations[0]
-	// 			currentStack := stacks[stackIndex]
-	// 			spreadCombinations = spreadCombinations[1:]
-	// 			stackIndex++
-	// 			for _, currentSpread := range spreads {
-	// 				var stackCombinationAddition Inventory
-	// 				for _, quantity := range currentSpread {
-	// 					stackCombinationAddition.Items = append(stackCombinationAddition.Items, Item{
-	// 						Name:  currentStack.Name,
-	// 						Stack: quantity,
-	// 					})
-	// 				}
-	// 				for _, stackCombination := range previousStackCombinations {
-	// 					newStackCombination := stackCombination.Copy()
-	// 					newStackCombination.Items = append(newStackCombination.Items, stackCombinationAddition.Copy().Items...)
-	// 					stackCombinations = append(stackCombinations, newStackCombination)
-	// 				}
-	// 			}
+			weight := weights[split]
+			suffixWeight := deblankedInventory.getWeights(targetFillCount-split, uint8(itemIndex)+1)
+			suffix := suffixWeight[targetFillCount-split]
+			if suffix == nil {
+				suffix = big.NewRat(0, 1)
+			}
 
-	// 		}
-	// 		for _, stackCombination := range stackCombinations {
-	// 			for _, item := range deblankedInventory.Items {
-	// 				if item.Stack > 1 {
-	// 					continue
-	// 				}
-	// 				stackCombination.Items = append(stackCombination.Items, item)
-	// 			}
-	// 			stackCombination = stackCombination.Copy()
-	// 			stackCombination.Sort()
-	// 			inventoryCombinations = append(inventoryCombinations, stackCombination)
-	// 		}
-	// 	}
-	// }
+			if splits[splitsFound] == split {
+				permCount := new(big.Rat).Set(rawPermCount)
+				permCount.Mul(permCount, prefixWeight)
+				permCount.Mul(permCount, weight)
+				permCount.Mul(permCount, suffix)
 
-	return inventoryCombinations
+				index.Add(index, permCount)
+				prefixWeight = new(big.Rat).Mul(prefixWeight, weight)
+				splitsFound++
+			}
+		}
+	}
+
+	// Bucket 3
+	exactSuffixes := make([]*big.Rat, len(deblankedInventory.Items)+1)
+	exactSuffixes[len(deblankedInventory.Items)] = big.NewRat(1, 1)
+	for itemIndex := len(deblankedInventory.Items) - 1; itemIndex >= 0; itemIndex-- {
+		parts := splits[itemIndex] + 1
+		itemContribution := big.NewRat(1, 1)
+		if parts > 1 {
+			itemStack := deblankedInventory.Items[itemIndex].Stack
+			itemContribution = getDuplicateWeight(itemStack, uint16(parts), itemStack, i.Cache)
+		}
+		exactSuffixes[itemIndex] = new(big.Rat).Set(itemContribution)
+		exactSuffixes[itemIndex] = exactSuffixes[itemIndex].Mul(exactSuffixes[itemIndex], exactSuffixes[itemIndex+1])
+	}
+
+	targetFillCount = fillCount
+	workingInventory := deblankedFullInventory.Copy()
+	for itemIndex, split := range splits {
+		item := deblankedInventory.Items[itemIndex]
+		split++
+		if split == 1 {
+			continue
+		}
+		suffix := exactSuffixes[itemIndex+1]
+		factorizations := sumFactorization(item.Stack, uint16(split), i.Cache)
+		for _, factorization := range factorizations {
+			factorIndexes := slices.Collect(maps.Keys(factorization))
+			slices.Sort(factorIndexes)
+
+			contains := true
+			for _, factor := range factorIndexes {
+				factorCount := factorization[factor]
+				containsCount := uint16(0)
+				newItem := Item{
+					Name:  item.Name,
+					Stack: factor,
+				}
+				for _, workingInventoryItem := range workingInventory.Items {
+					if workingInventoryItem == newItem {
+						containsCount++
+					}
+				}
+				contains = contains && (containsCount == factorCount)
+			}
+			if contains {
+				weight := big.NewRat(1, 1)
+				for _, factor := range factorIndexes {
+					factorCount := factorization[factor]
+					if factorCount > 1 {
+						factorCountFactorial := factorialBig(int64(factorCount))
+						weight.Denom().Mul(weight.Denom(), factorCountFactorial)
+					}
+				}
+				permCount := new(big.Rat).Set(rawPermCount)
+				permCount = permCount.Mul(permCount, weight)
+				permCount = permCount.Mul(permCount, suffix)
+				index.Add(index, permCount)
+
+			}
+
+		}
+	}
+
+	return index
 }
+
+// =========== OLD CODE ===================
 
 func (i Inventory) getPermutationCount() *big.Rat {
 	abstract := i.getAbstract()
@@ -620,80 +667,6 @@ func (i Inventory) getPermutationCount() *big.Rat {
 	numerator = factorialBig(numerator.Int64())
 	return new(big.Rat).SetFrac(numerator, denominator)
 }
-
-// func (i Inventory) getCounts() map[string]uint64 {
-// 	println("Getting counts")
-// 	inventories := i.calculateCombinations()
-// 	println("Calculated combos")
-// 	sort.Slice(inventories, func(j, k int) bool {
-// 		return fmt.Sprint(inventories[j].Items) < fmt.Sprint(inventories[k].Items)
-// 	})
-// 	invetoryCounts := make(map[string]uint64)
-// 	abstractCounts := make(map[string]uint64)
-
-// 	for _, inventory := range inventories {
-// 		inventory.addBlanks(len(i.Items))
-// 		abstract := inventory.getAbstract()
-// 		if abstractCounts[string(abstract)] > 0 {
-// 			invetoryCounts[inventory.encode()] = abstractCounts[string(abstract)]
-// 			continue
-// 		}
-// 		perms := inventory.getPermutationCount()
-// 		invetoryCounts[inventory.encode()] = perms
-// 		abstractCounts[string(abstract)] = perms
-// 	}
-// 	return invetoryCounts
-// }
-
-// GetVariationOLD gets the variation of a collapsed inventory at a given index
-// func (i Inventory) GetVariationOLD(target uint64) Inventory {
-// 	println("Getting variation")
-// 	inventoryCounts := i.getCounts()
-// 	println("Counts gotten")
-// 	var encodedInventories []string
-// 	for inventory := range inventoryCounts {
-// 		encodedInventories = append(encodedInventories, inventory)
-// 	}
-// 	slices.Sort(encodedInventories)
-
-// 	count := uint64(0)
-// 	encodedInventory := ""
-// 	for _, inventory := range encodedInventories {
-// 		currentInventoryCount := inventoryCounts[inventory]
-// 		if count+currentInventoryCount > target {
-// 			encodedInventory = inventory
-// 			break
-// 		}
-// 		count += currentInventoryCount
-// 	}
-// 	if len(encodedInventory) < 1 {
-// 		return Inventory{}
-// 	}
-
-// 	finalInventory := Inventory{}
-// 	workingInventory := decodeInventory(encodedInventory)
-// 	workingInventory.Sort()
-
-// 	for len(workingInventory.Items) > 0 {
-// 		checkedItems := Inventory{}
-// 		for index, item := range workingInventory.Items {
-// 			if checkedItems.Contains(item) {
-// 				continue
-// 			}
-// 			checkedItems.Items = append(checkedItems.Items, item)
-// 			checkingInventory := workingInventory.Copy()
-// 			checkingInventory.Items = slices.Delete(checkingInventory.Items, index, index+1)
-// 			permCount := checkingInventory.getPermutationCount()
-// 			if count+permCount > target {
-// 				workingInventory.Items = slices.Delete(workingInventory.Items, index, index+1)
-// 				finalInventory.Items = append(finalInventory.Items, item)
-// 				break
-// 			}
-// 			count += permCount
-// 		}
-// 	}
-// 	return finalInventory
-// }
 
 // func (i Inventory) GetIndex() uint64 {
 // 	collapsedInventory := i.Copy()
