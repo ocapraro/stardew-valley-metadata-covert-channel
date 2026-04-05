@@ -79,11 +79,13 @@ func GetCurrentInventory(savePath string, c cache) (Inventory, error) {
 
 func StartDecoder() {
 	println("Decoder Started!")
-	const path = "/Users/ocapraro/.config/StardewValley/Saves/CHANNEL_431325361/SaveGameInfo"
-	cacheInventory := Inventory{}
-	cacheInventory.NewCache()
-	cache := cacheInventory.Cache
-	inventory, _ := GetCurrentInventory(path, cache)
+	path, ok := os.LookupEnv("SAVE_PATH")
+	if !ok || strings.TrimSpace(path) == "" {
+		panic("SAVE_PATH environment variable is not set")
+	}
+	inventory := Inventory{}
+	inventory.NewCache()
+	cache := inventory.Cache
 	for {
 		time.Sleep(time.Second)
 		newInventory, _ := GetCurrentInventory(path, cache)

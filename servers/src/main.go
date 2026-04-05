@@ -56,7 +56,7 @@ func fillInventoryAndPrintBits(current *inventory.Inventory) {
 		step++
 		current.Items[nextBlank] = inventory.Item{
 			Name:  fmt.Sprintf("Unique Item %02d", step),
-			Stack: 99,
+			Stack: 999,
 		}
 	}
 }
@@ -66,27 +66,123 @@ func main() {
 		Items: []inventory.Item{
 			{
 				Name:  "Parsnip Seeds",
-				Stack: 15,
+				Stack: 999,
 			},
 			{
-				Name:  "Potato",
-				Stack: 99,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Melon Seeds",
-				Stack: 40,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Hoe",
-				Stack: 1,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Pickaxe",
-				Stack: 1,
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
-				Name:  "Axe",
-				Stack: 1,
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
+			},
+			{
+				Name:  "Blank",
+				Stack: 0,
 			},
 			{
 				Name:  "Blank",
@@ -118,13 +214,13 @@ func main() {
 	currentInventory.NewCache()
 
 	fmt.Println("Starting...")
-	// fillInventoryAndPrintBits(&currentInventory)
-	fmt.Println(currentInventory.CalculateSpreadPermutationCounts())
-	variation := currentInventory.GetVariation(big.NewRat(204223865, 1))
-	variation.Print()
-	variation.NewCache()
-	fmt.Println("Generating Index")
-	fmt.Println(variation.GetIndex())
+	fillInventoryAndPrintBits(&currentInventory)
+	// fmt.Println(currentInventory.CalculateSpreadPermutationCounts())
+	// variation := currentInventory.GetVariation(big.NewRat(204223865, 1))
+	// variation.Print()
+	// variation.NewCache()
+	// fmt.Println("Generating Index")
+	// fmt.Println(variation.GetIndex())
 
 	// msg := "Test"
 	// numberMsg := inventory.TextToNumber(msg)
