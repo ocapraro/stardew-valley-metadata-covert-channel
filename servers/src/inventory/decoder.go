@@ -42,8 +42,13 @@ type xmlItem struct {
 	Stack *uint16 `xml:"stack"`
 }
 
-type xmlRoot struct {
+type xmlFarmer struct {
+	Name  string    `xml:"name"`
 	Items []xmlItem `xml:"items>Item"`
+}
+
+type xmlRoot struct {
+	Farmhands []xmlFarmer `xml:"farmhands>Farmer"`
 }
 
 func GetCurrentInventory(savePath string, c cache) (Inventory, error) {
@@ -58,9 +63,20 @@ func GetCurrentInventory(savePath string, c cache) (Inventory, error) {
 		return Inventory{}, err
 	}
 
+	var farmerItems []xmlItem
+	for _, farmer := range root.Farmhands {
+		if strings.EqualFold(strings.TrimSpace(farmer.Name), "bob") {
+			farmerItems = farmer.Items
+			break
+		}
+	}
+	if farmerItems == nil {
+		return Inventory{}, fmt.Errorf("farmer %q not found in farmhands", "bob")
+	}
+
 	inventory := Inventory{}
 	inventory.Cache = c
-	for _, item := range root.Items {
+	for _, item := range farmerItems {
 		if item.Name == nil || item.Stack == nil {
 			inventory.Items = append(inventory.Items, Item{
 				Name:  "Blank",
