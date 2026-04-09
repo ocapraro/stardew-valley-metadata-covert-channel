@@ -6,3 +6,5 @@ InventoryManager/bin/
 .DS_Store
 stardew-valley-metadata-covert-channel.sln
 .env
+servers/src/decoder/main
+servers/src/encoder/main

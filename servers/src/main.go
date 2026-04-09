@@ -65,52 +65,52 @@ func main() {
 	currentInventory := inventory.Inventory{
 		Items: []inventory.Item{
 			{
+				Name:  "Potato Seeds",
+				Stack: 99,
+			},
+			{
+				Name:  "Bean Starter",
+				Stack: 99,
+			},
+			{
+				Name:  "Sugar",
+				Stack: 99,
+			},
+			{
+				Name:  "Rice",
+				Stack: 99,
+			},
+			{
+				Name:  "Vinegar",
+				Stack: 99,
+			},
+			{
+				Name:  "Kale Seeds",
+				Stack: 99,
+			},
+			{
 				Name:  "Parsnip Seeds",
-				Stack: 999,
+				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Tulip Bulb",
+				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Jazz Seeds",
+				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Cauliflower Seeds",
+				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Oil",
+				Stack: 99,
 			},
 			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
-			},
-			{
-				Name:  "Blank",
-				Stack: 0,
+				Name:  "Wood",
+				Stack: 99,
 			},
 			{
 				Name:  "Blank",
@@ -214,7 +214,14 @@ func main() {
 	currentInventory.NewCache()
 
 	fmt.Println("Starting...")
-	fillInventoryAndPrintBits(&currentInventory)
+	// fillInventoryAndPrintBits(&currentInventory)
+	// fmt.Println(inventory.TextToNumber("Lily"))
+	// message := "Lily"
+	message := "a9951ce549e42b03146871b65e314929"
+	numberMessage := inventory.TextToNumber(message)
+	variation := currentInventory.GetVariation(numberMessage)
+	fmt.Println("Message:", numberMessage, message)
+	fmt.Println(variation)
 	// fmt.Println(currentInventory.CalculateSpreadPermutationCounts())
 	// variation := currentInventory.GetVariation(big.NewRat(204223865, 1))
 	// variation.Print()

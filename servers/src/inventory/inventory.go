@@ -10,11 +10,12 @@ import (
 )
 
 type cache struct {
-	smallFactorial    map[int]int
-	duplicateWeights  map[[3]uint16]*big.Rat
-	partitionCounts   map[[2]uint8]uint64
-	sumFactorizations map[[2]uint16][]map[uint16]uint16
-	perms             map[[2]uint8][][]uint8
+	smallFactorial     map[int]int
+	duplicateWeights   map[[3]uint16]*big.Rat
+	partitionCounts    map[[2]uint8]uint64
+	sumFactorizations  map[[2]uint16][]map[uint16]uint16
+	perms              map[[2]uint8][][]uint8
+	weightedPartCounts map[[3]uint16]*big.Rat
 }
 
 type Item struct {
@@ -33,11 +34,12 @@ type Inventory struct {
 
 func (i *Inventory) NewCache() {
 	i.Cache = cache{
-		smallFactorial:    make(map[int]int),
-		duplicateWeights:  make(map[[3]uint16]*big.Rat),
-		partitionCounts:   make(map[[2]uint8]uint64),
-		sumFactorizations: make(map[[2]uint16][]map[uint16]uint16),
-		perms:             make(map[[2]uint8][][]uint8),
+		smallFactorial:     make(map[int]int),
+		duplicateWeights:   make(map[[3]uint16]*big.Rat),
+		partitionCounts:    make(map[[2]uint8]uint64),
+		sumFactorizations:  make(map[[2]uint16][]map[uint16]uint16),
+		perms:              make(map[[2]uint8][][]uint8),
+		weightedPartCounts: make(map[[3]uint16]*big.Rat),
 	}
 }
 
@@ -210,6 +212,63 @@ func sumFactorization(x, length uint16, c cache) []map[uint16]uint16 {
 	for index, factorization := range result {
 		c.sumFactorizations[key][index] = maps.Clone(factorization)
 	}
+	return result
+}
+
+// weightedPartitionCount computes the sum of (1/∏ci!) over all unordered partitions
+// of x into exactly k positive integers, each ≥ minVal.
+// This allows navigating the partition space in O(x*k) time without enumerating
+// all partitions explicitly.
+func weightedPartitionCount(x, k, minVal uint16, c cache) *big.Rat {
+	if k == 0 {
+		if x == 0 {
+			return big.NewRat(1, 1)
+		}
+		return big.NewRat(0, 1)
+	}
+	if x < k*minVal {
+		return big.NewRat(0, 1)
+	}
+	if k == 1 {
+		if x >= minVal {
+			return big.NewRat(1, 1)
+		}
+		return big.NewRat(0, 1)
+	}
+
+	key := [3]uint16{x, k, minVal}
+	if cached, ok := c.weightedPartCounts[key]; ok {
+		return new(big.Rat).Set(cached)
+	}
+
+	result := new(big.Rat)
+	// For each possible smallest distinct value v starting at minVal
+	for v := minVal; uint32(v)*uint32(k) <= uint32(x); v++ {
+		// For each count c of v (1 to k, subject to c*v ≤ x)
+		for count := uint16(1); count <= k && uint32(count)*uint32(v) <= uint32(x); count++ {
+			newX := x - count*v
+			newK := k - count
+			var subCount *big.Rat
+			if newK == 0 {
+				if newX == 0 {
+					subCount = big.NewRat(1, 1)
+				} else {
+					continue
+				}
+			} else {
+				subCount = weightedPartitionCount(newX, newK, v+1, c)
+				if subCount.Sign() == 0 {
+					continue
+				}
+			}
+			countFact := factorialBig(int64(count))
+			term := new(big.Rat).SetFrac(big.NewInt(1), countFact)
+			term.Mul(term, subCount)
+			result.Add(result, term)
+		}
+	}
+
+	c.weightedPartCounts[key] = new(big.Rat).Set(result)
 	return result
 }
 
@@ -457,54 +516,69 @@ func (i Inventory) GetVariation(target *big.Rat) Inventory {
 		exactSuffixes[itemIndex] = exactSuffixes[itemIndex].Mul(exactSuffixes[itemIndex], exactSuffixes[itemIndex+1])
 	}
 	finalInventoryCombination := Inventory{}
-	targetFillCount = blankCount - targetBlankCount
 	exactPrefix := big.NewRat(1, 1)
 	for itemIndex, split := range targetSplits {
-		chosen := false
 		item := deblankedInventory.Items[itemIndex]
 		split++
 		if split == 1 {
 			finalInventoryCombination.Items = append(finalInventoryCombination.Items, item)
-			chosen = true
 			continue
 		}
 		suffix := exactSuffixes[itemIndex+1]
-		factorizations := sumFactorization(item.Stack, uint16(split), i.Cache)
-		for _, factorization := range factorizations {
-			factorIndexes := slices.Collect(maps.Keys(factorization))
-			slices.Sort(factorIndexes)
-			weight := big.NewRat(1, 1)
-			for _, factor := range factorIndexes {
-				factorCount := factorization[factor]
-				if factorCount > 1 {
-					factorCountFactorial := factorialBig(int64(factorCount))
-					weight.Denom().Mul(weight.Denom(), factorCountFactorial)
+		// Tree-walk the partition space: choose (value, count) pairs in ascending order
+		// instead of enumerating all partitions via sumFactorization.
+		remaining := item.Stack
+		remParts := uint16(split)
+		minVal := uint16(1)
+		factMap := map[uint16]uint16{}
+		for remParts > 0 {
+			found := false
+			for v := minVal; !found && uint32(v)*uint32(remParts) <= uint32(remaining); v++ {
+				for c := uint16(1); c <= remParts && uint32(c)*uint32(v) <= uint32(remaining); c++ {
+					newX := remaining - c*v
+					newK := remParts - c
+					var subCount *big.Rat
+					if newK == 0 {
+						if newX == 0 {
+							subCount = big.NewRat(1, 1)
+						} else {
+							continue
+						}
+					} else {
+						subCount = weightedPartitionCount(newX, newK, v+1, i.Cache)
+						if subCount.Sign() == 0 {
+							continue
+						}
+					}
+					cFact := factorialBig(int64(c))
+					subW := new(big.Rat).SetFrac(big.NewInt(1), cFact)
+					branchCount := new(big.Rat).Mul(rawPermCount, exactPrefix)
+					branchCount.Mul(branchCount, subW)
+					branchCount.Mul(branchCount, subCount)
+					branchCount.Mul(branchCount, suffix)
+					if rank.Cmp(branchCount) < 0 {
+						factMap[v] = c
+						exactPrefix.Mul(exactPrefix, subW)
+						remaining = newX
+						remParts = newK
+						minVal = v + 1
+						found = true
+						break
+					}
+					rank.Sub(rank, branchCount)
 				}
 			}
-			branchCount := new(big.Rat).Set(rawPermCount)
-			branchCount = branchCount.Mul(branchCount, exactPrefix)
-			branchCount = branchCount.Mul(branchCount, weight)
-			branchCount = branchCount.Mul(branchCount, suffix)
-			if rank.Cmp(branchCount) < 0 {
-				for _, factor := range factorIndexes {
-					factorCount := factorization[factor]
-					newItem := Item{
-						Name:  item.Name,
-						Stack: factor,
-					}
-					for range factorCount {
-						finalInventoryCombination.Items = append(finalInventoryCombination.Items, newItem)
-					}
-				}
-				targetFillCount -= split
-				exactPrefix = new(big.Rat).Mul(exactPrefix, weight)
-				chosen = true
-				break
+			if !found {
+				panic(fmt.Sprintf("bucket 3 failed at item %d (%s)", itemIndex, item.Name))
 			}
-			rank.Sub(rank, branchCount)
 		}
-		if !chosen {
-			panic(fmt.Sprintf("bucket 3 failed at item %d (%s)", itemIndex, item.Name))
+		factVals := slices.Collect(maps.Keys(factMap))
+		slices.Sort(factVals)
+		for _, v := range factVals {
+			newItem := Item{Name: item.Name, Stack: v}
+			for range factMap[v] {
+				finalInventoryCombination.Items = append(finalInventoryCombination.Items, newItem)
+			}
 		}
 	}
 	finalInventoryCombination.addBlanks(len(i.Items))
@@ -653,90 +727,80 @@ func (i Inventory) GetIndex() *big.Rat {
 			continue
 		}
 		suffix := exactSuffixes[itemIndex+1]
-		factorizations := sumFactorization(item.Stack, uint16(parts), i.Cache)
 
-		for _, factorization := range factorizations {
-			factorIndexes := slices.Collect(maps.Keys(factorization))
-			slices.Sort(factorIndexes)
+		// Build actual factorization for this item from workingInventory
+		actualStacks := map[uint16]uint16{}
+		for _, invItem := range workingInventory.Items {
+			if invItem.Name == item.Name {
+				actualStacks[invItem.Stack]++
+			}
+		}
 
-			matchesActual := true
-			for _, factor := range factorIndexes {
-				factorCount := factorization[factor]
-				actualCount := uint16(0)
-
-				want := Item{
-					Name:  item.Name,
-					Stack: factor,
-				}
-
-				for _, invItem := range workingInventory.Items {
-					if invItem == want {
-						actualCount++
-					}
-				}
-
-				if actualCount != factorCount {
-					matchesActual = false
-					break
+		// Tree-walk: count branches that precede the actual factorization
+		remaining := item.Stack
+		remParts := uint16(parts)
+		minVal := uint16(1)
+		for remParts > 0 {
+			// Find actual (v, c) at this level: smallest key in actualStacks >= minVal
+			actualV := uint16(0)
+			for sv := range actualStacks {
+				if sv >= minVal && (actualV == 0 || sv < actualV) {
+					actualV = sv
 				}
 			}
+			actualC := actualStacks[actualV]
 
-			if matchesActual {
-				expectedTotal := uint16(0)
-				actualTotal := uint16(0)
+			done := false
+			for v := minVal; !done && uint32(v)*uint32(remParts) <= uint32(remaining); v++ {
+				for c := uint16(1); c <= remParts && uint32(c)*uint32(v) <= uint32(remaining); c++ {
+					newX := remaining - c*v
+					newK := remParts - c
 
-				for _, factor := range factorIndexes {
-					expectedTotal += factorization[factor]
-				}
-				for _, invItem := range workingInventory.Items {
-					if invItem.Name == item.Name {
-						actualTotal++
-					}
-				}
-
-				if expectedTotal != actualTotal {
-					matchesActual = false
-				}
-			}
-
-			weight := big.NewRat(1, 1)
-			for _, factor := range factorIndexes {
-				factorCount := factorization[factor]
-				if factorCount > 1 {
-					factorCountFactorial := factorialBig(int64(factorCount))
-					weight.Denom().Mul(weight.Denom(), factorCountFactorial)
-				}
-			}
-
-			permCount := new(big.Rat).Set(rawPermCount)
-			permCount.Mul(permCount, exactPrefix)
-			permCount.Mul(permCount, weight)
-			permCount.Mul(permCount, suffix)
-
-			if matchesActual {
-				exactPrefix = new(big.Rat).Mul(exactPrefix, weight)
-				// remove the chosen stacks for this item from workingInventory
-				for _, factor := range factorIndexes {
-					factorCount := factorization[factor]
-					for removed := uint16(0); removed < factorCount; removed++ {
-						toRemove := Item{
-							Name:  item.Name,
-							Stack: factor,
-						}
-
-						for idx, invItem := range workingInventory.Items {
-							if invItem == toRemove {
-								workingInventory.Items = slices.Delete(workingInventory.Items, idx, idx+1)
-								break
+					if v == actualV && c == actualC {
+						// Matching branch: enter it
+						cFact := factorialBig(int64(c))
+						subW := new(big.Rat).SetFrac(big.NewInt(1), cFact)
+						exactPrefix.Mul(exactPrefix, subW)
+						remaining = newX
+						remParts = newK
+						minVal = v + 1
+						delete(actualStacks, actualV)
+						for r := uint16(0); r < c; r++ {
+							toRemove := Item{Name: item.Name, Stack: v}
+							for idx, invItem := range workingInventory.Items {
+								if invItem == toRemove {
+									workingInventory.Items = slices.Delete(workingInventory.Items, idx, idx+1)
+									break
+								}
 							}
 						}
+						done = true
+						break
 					}
+
+					// Count this branch (it precedes the actual)
+					var subCount *big.Rat
+					if newK == 0 {
+						if newX == 0 {
+							subCount = big.NewRat(1, 1)
+						} else {
+							continue
+						}
+					} else {
+						subCount = weightedPartitionCount(newX, newK, v+1, i.Cache)
+						if subCount.Sign() == 0 {
+							continue
+						}
+					}
+					cFact := factorialBig(int64(c))
+					subW := new(big.Rat).SetFrac(big.NewInt(1), cFact)
+					permCount := new(big.Rat).Mul(rawPermCount, exactPrefix)
+					permCount.Mul(permCount, subW)
+					permCount.Mul(permCount, subCount)
+					permCount.Mul(permCount, suffix)
+					index.Add(index, permCount)
 				}
-
-				break
 			}
-
-			index.Add(index, permCount)
 		}
 	}
 
